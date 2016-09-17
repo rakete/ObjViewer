@@ -1,0 +1,7 @@
+Author: Andreas Raster <lazor@affenbande.org>
+
+A simple ObjViewer. Might be usefull as Parsec example and for everyone trying
+to figure out how to use OpenGL with Haskell.
+
+Building: ghc --make ObjViewer.hs
+Usage: ObjViewer <objfile>
