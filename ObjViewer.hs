@@ -51,20 +51,18 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
         vboUploadObject mmtllib _ mesh io = do
             putStrLn $ "Uploading " ++ (objmesh_name mesh) ++ "..."
 
-            let (vertexlist,normallist,texcoordlist,indiceslist) = (objmesh_data mesh) :: ([Vertex3 GLfloat],[Normal3 GLfloat],[TexCoord2 GLfloat],[Indices GLuint])
+            let (vertexlist,normallist,texcoordlist,indiceslist) = (objmesh_data mesh) :: ([Vertex3 GLfloat],[Normal3 GLfloat],[TexCoord2 GLfloat],Indices GLuint)
                 --triangulated_indiceslist :: [Indices GLuint] = concat $ map (triangulatePolygon (M.fromList $ zip [0..] vertexlist)) indiceslist
 
             putStrLn $ show $ last vertexlist
             putStrLn $ show $ last normallist
             putStrLn $ show $ last texcoordlist
             putStrLn $ show $ last indiceslist
-            let islist = (indicesAsList indiceslist)
-            putStrLn $ show $ last islist
 
             vid <- newVBO ArrayBuffer vertexlist StaticDraw
             nid <- newVBO ArrayBuffer normallist StaticDraw
             tid <- newVBO ArrayBuffer texcoordlist StaticDraw
-            iid <- newVBO ElementArrayBuffer islist StaticDraw
+            iid <- newVBO ElementArrayBuffer indiceslist StaticDraw
 
             let gs = (M.elems $ groups mesh)
             ts <- sequence $ map (\g -> do

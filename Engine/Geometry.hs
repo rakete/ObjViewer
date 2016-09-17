@@ -1,13 +1,12 @@
 {-# OPTIONS_GHC -fglasgow-exts #-}
 module Engine.Geometry
 ( newVBO
-, Indices(..)
+, Indices
 , FaceGroup(..)
 , Mesh(..)
 , renderMeshWith
 , create2DGrid
 , triangulatePolygon
-, indicesAsList
 ) where
 
 import Graphics.Rendering.OpenGL.GL hiding (get,newMatrix)
@@ -29,11 +28,7 @@ newVBO buf xs mode = do
         bufferData buf $= (fromIntegral (length xs * sizeOf (head xs)),p,mode)
     return bo
 
-data Indices a =
-    TriangleIndices (a,a,a) |
-    QuadIndices (a,a,a,a) |
-    PolygonIndices [a]
-    deriving Show
+type Indices a = [a]
 
 data FaceGroup = FaceGroup
     { face_offset :: Int
@@ -291,12 +286,12 @@ cutEar is@(a:b:c:d:xs) i =
         then error "Nothing to cut"
         else es
 
-triangulatePolygon :: (Num a,Integral a,RealFloat c,Fractional c,Ord c,Enum c,VertexComponent c) => M.Map a (Vertex3 c) -> Indices a -> (Bool,[Indices a])
-triangulatePolygon _ t@(TriangleIndices _) = (True,[t])
-triangulatePolygon _ (QuadIndices (i1,i2,i3,i4)) = (True,[TriangleIndices (i1,i2,i3),TriangleIndices (i1,i3,i4)])
-triangulatePolygon vertices (PolygonIndices is) =
+triangulatePolygon :: (Num a,Integral a,RealFloat c,Fractional c,Ord c,Enum c,VertexComponent c) => M.Map a (Vertex3 c) -> Indices a -> (Bool,Indices a)
+triangulatePolygon _ t@(a:b:c:[]) = (True,t)
+triangulatePolygon _ (i1:i2:i3:i4:[]) = (True,[i1,i2,i3,i1,i3,i4])
+triangulatePolygon vertices is =
     let es = earVertices vertices2d is
-    in (True, map (\(a:b:c:[]) -> TriangleIndices (a,b,c)) $ triangulate es is) where
+    in (True, concat $ triangulate es is) where
 
     vertices2d = flatten vertices is
     triangulate _ [] = []
@@ -315,11 +310,3 @@ triangulatePolygon vertices (PolygonIndices is) =
         if null is
          then [[i1,i2,i3]]
          else [i1,i2,i3] : takeachance (i1:i3:is)
-
-
-indicesAsList :: [Indices a] -> [a]
-indicesAsList iss = asList iss [] where
-    asList ((TriangleIndices (i1,i2,i3)):is) xs = asList is (xs ++ [i1,i2,i3])
-    asList ((QuadIndices (i1,i2,i3,i4)):is) xs = asList is (xs ++ [i1,i2,i3,i4])
-    asList ((PolygonIndices xs'):is) xs = asList is (xs ++ xs')
-    asList [] xs = xs

@@ -32,7 +32,7 @@ data ObjVertexGroup a = ObjVertexGroup
     { group_type :: Maybe String
     , group_name :: Maybe String
     , group_mat :: Maybe String
-    , group_indices :: [Indices a]
+    , group_indices :: Indices a
     , group_offset :: Int
     , group_numIndices :: Int
     }
@@ -40,7 +40,7 @@ data ObjVertexGroup a = ObjVertexGroup
 
 data ObjMesh a b = ObjMesh
     { objmesh_name :: String
-    , objmesh_data :: ([Vertex3 a],[Normal3 a],[TexCoord2 a],[Indices b])
+    , objmesh_data :: ([Vertex3 a],[Normal3 a],[TexCoord2 a],Indices b)
     , groups :: M.Map b (ObjVertexGroup b)
     }
     deriving Show
@@ -182,7 +182,7 @@ parseObject fallbackname = do
     -- correct offsets for every group, also triangulate the indices
     let (groups,fitted_indices,_) = foldl (\(groups',indices',offset') (typ,name,material,iss) ->
                                         let iss' = concat $ map (snd . triangulatePolygon verticesMap) $ fitIndices indicesMap iss []
-                                            nextoffset = fitOffset iss' offset'
+                                            nextoffset = offset' + (fromIntegral $ length iss')
                                         in (groups' ++ [ObjVertexGroup typ name material iss' offset' (nextoffset-offset')], indices' ++ iss',nextoffset)) ([],[],0) groupstuples
 
     let meshdata = (reverse fitted_vertices,reverse fitted_normals,reverse fitted_texcoords,fitted_indices)
@@ -224,15 +224,9 @@ parseObject fallbackname = do
         fit (i:is) xs = fit is (xs ++ [indicesMap M.! i])
         classify xs =
             case length xs of
-                3 -> (\(a:b:c:[]) -> TriangleIndices (a,b,c)) xs
-                4 -> (\(a:b:c:d:[]) -> QuadIndices (a,b,c,d)) xs
-                otherwise -> PolygonIndices xs
-
-    -- this is basicly just length for our [Indices]
-    fitOffset [] l = l
-    fitOffset ((TriangleIndices _):is) l = fitOffset is (l + 3)
-    fitOffset ((QuadIndices _):is) l = fitOffset is (l + 4)
-    fitOffset ((PolygonIndices xs):is) l = fitOffset is (l + (fromIntegral $ length xs))
+                3 -> (\(a:b:c:[]) -> [a,b,c]) xs
+                4 -> (\(a:b:c:d:[]) -> [a,b,c,d]) xs
+                otherwise -> xs
 
 parseObjScene :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => String -> GenParser Char ParserState (Maybe FilePath,ObjScene c i)
 parseObjScene fallbackname = do
