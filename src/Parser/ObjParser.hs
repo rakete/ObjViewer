@@ -9,10 +9,14 @@ module Parser.ObjParser
 import Graphics.Rendering.OpenGL.GL.VertexSpec
 import Graphics.Rendering.OpenGL.GL.Texturing
 import Graphics.Rendering.OpenGL.GL.Tensor
-import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Perm
-import qualified Text.ParserCombinators.Parsec.Token as P
-import Text.ParserCombinators.Parsec.Language
+
+import Text.Parsec
+import Text.Parsec.Perm
+import qualified Text.Parsec.Token as P
+--import Text.Parsec.Token
+import Text.Parsec.Language
+import Text.Parsec.String
+
 import Data.Maybe
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
@@ -51,21 +55,21 @@ data ObjScene a b = ObjScene
     }
 
 -- this definition is used by Parsec to create a custom lexer for our language
-objStyle :: LanguageDef st
-objStyle = LanguageDef
-    { commentStart   = ""
-    , commentEnd     = ""
-    , commentLine    = "#"
-    , nestedComments = True
-    , identStart     = alphaNum <|> oneOf "_/"
-    , identLetter    = alphaNum <|> oneOf "_./-"
-    , opStart        = opLetter objStyle
-    , opLetter       = pzero
-    , reservedOpNames= []
-    , reservedNames  = ["mtllib","o","v","vp","vt","vn","g","s","usemtl","f"
+objStyle :: P.LanguageDef st
+objStyle = P.LanguageDef
+    { P.commentStart   = ""
+    , P.commentEnd     = ""
+    , P.commentLine    = "#"
+    , P.nestedComments = True
+    , P.identStart     = alphaNum <|> oneOf "_/"
+    , P.identLetter    = alphaNum <|> oneOf "_./-"
+    , P.opStart        = P.opLetter objStyle
+    , P.opLetter       = parserZero
+    , P.reservedOpNames= []
+    , P.reservedNames  = ["mtllib","o","v","vp","vt","vn","g","s","usemtl","f"
                        ,"newmtl","Ka","Kd","Ks","Ke","Ns","Ni","Tf","d","-halo","illum","sharpness","Ni"
                        ,"map_Ka","map_Kd","map_Ks"]
-    , caseSensitive  = True
+    , P.caseSensitive  = True
     }
 
 -- create the lexer
@@ -136,36 +140,41 @@ parseVertices = do
 parseVertexGroup :: Integral i => GenParser Char ParserState (Maybe String,Maybe String,Maybe String,[[(i,Maybe i,Maybe i)]])
 parseVertexGroup = do
     (ParserState (_,v_offset) (_,t_offset) (_,n_offset)) <- getState
-    material <- option Nothing $ do
-         reserved "usemtl"
-         mat <- identifier
-         return $ Just mat
-    (typ,name) <- option (Nothing,Nothing) $ do
-        typ <- choice [do {reserved "g"; return "g"}, do {reserved "s"; return "s"}]
-        name <- identifier
-        return (Just typ, Just name)
+    (material,groupname,smoothgroup) <- permute $
+      (,,)
+      <$?> (Nothing,
+            do reserved "usemtl"
+               mat <- identifier
+               return $ Just mat)
+      <|?> (Nothing,
+           do reserved "g"
+              groupname <- option "" identifier
+              return $ Just groupname)
+      <|?> (Nothing,
+           do reserved "s"
+              smoothgroup <- option "" identifier
+              return $ Just smoothgroup)
     indices <- many1 $ do -- [([Integral a],[Integral a],[Integral a]),...]
         reserved "f"
-        ixs <- many3 $ try (do
-                v <- do
-                    v' <- natural
-                    return $ fromIntegral (v'-1-v_offset)
-                symbol "/"
-                t <- option Nothing $ do
-                    t' <- natural
-                    return $ Just $ fromIntegral (t'-1-t_offset)
-                symbol "/"
-                n <- option Nothing $ do
-                    n' <- natural
-                    return $ Just $ fromIntegral (n'-1-n_offset)
-                return (v,n,t))
-            <|> (do
-                   v' <- natural
-                   return $ (fromIntegral (v'-1-v_offset),Nothing,Nothing))
-        return ixs
+        many3 $ try (do
+                        v <- do
+                          v' <- natural
+                          return $ fromIntegral (v'-1-v_offset)
+                        symbol "/"
+                        t <- option Nothing $ do
+                          t' <- natural
+                          return $ Just $ fromIntegral (t'-1-t_offset)
+                        symbol "/"
+                        n <- option Nothing $ do
+                          n' <- natural
+                          return $ Just $ fromIntegral (n'-1-n_offset)
+                        return (v,n,t))
+          <|> (do
+                  v' <- natural
+                  return (fromIntegral (v'-1-v_offset),Nothing,Nothing))
     --let (vi,ni,ti) = unzip3 $ map (\(v,n,t) -> (PolygonIndices v, PolygonIndices $ concat n, PolygonIndices $ concat t)) indices
     --let filterfunc = (\is -> filter (\n -> case n of {TriangleIndices _ -> True; PolygonIndices xs -> length xs > 2}) is)
-    return $ (typ,name,material,indices)
+    return (material, groupname, smoothgroup, indices)
 
 parseObject :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => String -> GenParser Char ParserState (ObjMesh c i)
 parseObject fallbackname = do
