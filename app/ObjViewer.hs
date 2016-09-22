@@ -172,7 +172,7 @@ initGL = do
         putStr "Initializing GL context..."
         GLFW.initialize
         -- open window
-        GLFW.openWindow (Size 400 400) [GLFW.DisplayAlphaBits 8] GLFW.Window
+        GLFW.openWindow (Size 400 400) [GLFW.DisplayAlphaBits 8, GLFW.DisplayDepthBits 16] GLFW.Window
         GLFW.windowTitle $= "ObjViewer : " ++ (show mpath)
         shadeModel $= Smooth
         -- enable antialiasing
