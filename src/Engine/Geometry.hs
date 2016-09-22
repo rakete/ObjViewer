@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
 module Engine.Geometry
 ( newVBO
 , Indices

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fglasgow-exts -fth #-}
 module Utility.Tuple
 ( fst3, snd3, thd3
 , fst4
@@ -23,7 +22,7 @@ tupleN n m = do
 
 toTuple :: Name -> ExpQ
 toTuple d = do
-     TyConI (DataD _ _ _ cstrs _) <- reify d
+     TyConI (DataD _ _ _ _ cstrs _) <- reify d
      if length cstrs == 1
       then do
         (cname,n) <- case head cstrs of
@@ -36,7 +35,7 @@ toTuple d = do
 
 fromTuple :: Name -> ExpQ
 fromTuple d = do
-     TyConI (DataD _ _ _ cstrs _) <- reify d
+     TyConI (DataD _ _ _ _ cstrs _) <- reify d
      if length cstrs == 1
       then do
         (cname,n) <- case head cstrs of
@@ -53,5 +52,3 @@ genPE n = do
 
 genAppE :: ExpQ -> [ExpQ] -> ExpQ
 genAppE expr vars = foldl (\expr' v -> appE expr' v) (appE expr $ head vars) $ tail vars
-
-

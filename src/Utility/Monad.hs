@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
 module Utility.Monad
 ( liftTa
 , liftTb
@@ -17,7 +16,3 @@ liftTb (a,mb) = do
 
 (>>-) :: Monad m => m a -> (a -> b) -> m b
 (>>-) m f = m >>= return . f
-
-
-
-

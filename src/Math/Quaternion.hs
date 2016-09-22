@@ -1,5 +1,4 @@
-
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FlexibleInstances #-}
 module Math.Quaternion
 ( Quaternion(..)
 , rotateQuatGL
@@ -67,7 +66,7 @@ class Vector q c => Quaternion q c where
         in newQuaternion [(-x),(-y),(-z),w]
 
     quatMagnitude q =
-        let (x,y,z,w) = quatToTuple q 
+        let (x,y,z,w) = quatToTuple q
         in sqrt (w*w + x*x + y*y + z*z)
 
     rotationQuat angle' u' =
@@ -75,19 +74,19 @@ class Vector q c => Quaternion q c where
             angle = pi/(360/angle')
         in newQuaternion [(ux * sin(angle)),(uy * sin(angle)),(uz * sin(angle)),(cos(angle))]
 
-    rotateVector q v = fromVector $ q `quatProduct` (fromVector v) `quatProduct` (quatInv q) 
+    rotateVector q v = fromVector $ q `quatProduct` (fromVector v) `quatProduct` (quatInv q)
 
 instance (Ord c,Enum c,Floating c,GL.VertexComponent c) => Quaternion (GL.Vertex4 c) c where
     newQuaternion xs | not(length xs == 4) = error "newQuaternion: list length must be 4"
                      | otherwise = let (x:y:z:w:_) = xs
-                                   in GL.Vertex4 x y z w                     
+                                   in GL.Vertex4 x y z w
     fromQuaternion (GL.Vertex4 x y z w) = newQuaternion [x,y,z,w]
     quatToList (GL.Vertex4 x y z w) = [x,y,z,w]
     quatToTuple (GL.Vertex4 x y z w) = (x,y,z,w)
     rotationQuat angle' u' =
         let u@(GL.Vertex4 ux uy uz _) = norm $ fromVector u'
             angle = pi/(360/angle')
-        in GL.Vertex4 (ux * sin(angle)) (uy * sin(angle)) (uz * sin(angle)) (cos(angle))                     
+        in GL.Vertex4 (ux * sin(angle)) (uy * sin(angle)) (uz * sin(angle)) (cos(angle))
 
 rotateQuatGL :: GL.Vertex4 GL.GLfloat -> IO ()
 rotateQuatGL q = do

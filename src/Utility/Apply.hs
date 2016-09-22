@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -fth #-}
-module Utility.Apply 
+module Utility.Apply
 ( apply
 , applyN
 ) where
@@ -9,14 +8,14 @@ import Control.Monad
 
 applyN n t f = do
     c <- newName "c"
-    TyConI (DataD _ _ _ cstrs _) <- reify t
+    TyConI (DataD _ _ _ _ cstrs _) <- reify t
     (pats,vars) <- genPE $ n-1
     matches <- mapM (genMatch f vars) cstrs
     lamE (pats ++ [varP c]) (caseE (varE c) matches)
 
 apply t f = do
     c <- newName "c"
-    TyConI (DataD _ _ _ cstrs _) <- reify t
+    TyConI (DataD _ _ _ _ cstrs _) <- reify t
     matches <- mapM (genMatch f []) cstrs
     lamE [varP c] (caseE (varE c) matches)
 

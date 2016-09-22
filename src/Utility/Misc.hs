@@ -1,9 +1,7 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Utility.Misc
 ( xor
 ) where
-
-import Maybe
 
 class Show' a where
     show' :: a -> String

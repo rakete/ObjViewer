@@ -9,11 +9,9 @@ module Utility.Image
 
 import Graphics.Imlib
 import qualified Data.Map as M
-import qualified Data.Array as A
 import Data.Ix
 import Foreign
 import Data.List
-import Control.Monad.Trans
 
 import Math.Metric
 
@@ -195,4 +193,3 @@ tileImage image (tile_w,tile_h) overlap path = do
 --testfoo = do
 --    image <- loadImage "mars_heightmap.png"
 --    tileImage image (64,64) 1 "./tiles/"
-

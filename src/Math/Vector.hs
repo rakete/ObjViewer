@@ -1,5 +1,4 @@
-
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
 module Math.Vector
 ( Vector(..)
 , vertex2Tuple
