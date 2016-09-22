@@ -33,9 +33,9 @@ import Utility.List
 type ObjMaterial a = Material a
 
 data ObjVertexGroup a = ObjVertexGroup
-    { group_type :: Maybe String
-    , group_name :: Maybe String
-    , group_mat :: Maybe String
+    { group_material :: Maybe String
+    , group_groupname :: Maybe String
+    , group_smoothgroup :: Maybe String
     , group_indices :: Indices a
     , group_offset :: Int
     , group_numIndices :: Int
@@ -154,7 +154,7 @@ parseVertexGroup = do
            do reserved "s"
               smoothgroup <- option "" identifier
               return $ Just smoothgroup)
-    indices <- many1 $ do -- [([Integral a],[Integral a],[Integral a]),...]
+    indices <- many1 $ do
         reserved "f"
         many3 $ try (do
                         v <- do
@@ -172,8 +172,6 @@ parseVertexGroup = do
           <|> (do
                   v' <- natural
                   return (fromIntegral (v'-1-v_offset),Nothing,Nothing))
-    --let (vi,ni,ti) = unzip3 $ map (\(v,n,t) -> (PolygonIndices v, PolygonIndices $ concat n, PolygonIndices $ concat t)) indices
-    --let filterfunc = (\is -> filter (\n -> case n of {TriangleIndices _ -> True; PolygonIndices xs -> length xs > 2}) is)
     return (material, groupname, smoothgroup, indices)
 
 parseObject :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => String -> GenParser Char ParserState (ObjMesh c i)
@@ -189,10 +187,10 @@ parseObject fallbackname = do
 
     -- fold the list of tuples returned by parseVertexGroup and assemble the ObjVertexGroup structures, keeping the
     -- correct offsets for every group, also triangulate the indices
-    let (groups,fitted_indices,_) = foldl (\(groups',indices',offset') (typ,name,material,iss) ->
+    let (groups,fitted_indices,_) = foldl (\(groups',indices',offset') (material, groupname, smoothgroup, iss) ->
                                         let iss' = concat $ map (snd . triangulatePolygon verticesMap) $ fitIndices indicesMap iss []
                                             nextoffset = offset' + (fromIntegral $ length iss')
-                                        in (groups' ++ [ObjVertexGroup typ name material iss' offset' (nextoffset-offset')], indices' ++ iss',nextoffset)) ([],[],0) groupstuples
+                                        in (groups' ++ [ObjVertexGroup material groupname smoothgroup iss' offset' (nextoffset-offset')], indices' ++ iss',nextoffset)) ([],[],0) groupstuples
 
     let meshdata = (reverse fitted_vertices,reverse fitted_normals,reverse fitted_texcoords,fitted_indices)
 
@@ -245,7 +243,7 @@ parseObjScene fallbackname = do
         identifier >>= return . Just
     objects <- many1 $ parseObject fallbackname
     eof
-    return $ (mtlfile,ObjScene Nothing (listIntMap objects))
+    return $ (mtlfile, ObjScene Nothing (listIntMap objects))
 
 parseObjFile :: (ColorComponent c,VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => FilePath -> IO (Either ParseError (ObjScene c i))
 parseObjFile objpath = do
@@ -254,7 +252,7 @@ parseObjFile objpath = do
         objparse = (runParser (parseObjScene fallbackname) initParserState objpath objinput)
     case objparse of
         Left err -> return $ Left err
-        Right (maybe_mtlpath,os@(ObjScene _ o)) -> do
+        Right (maybe_mtlpath, os@(ObjScene _ o)) -> do
             case maybe_mtlpath of
                 Just mtlpath -> do
                     b <- doesFileExist mtlpath

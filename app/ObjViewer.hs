@@ -70,8 +70,8 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
                 let offset = group_offset g
                 let ni = group_numIndices g
                 let mat = if isJust mmtllib
-                           then if isJust (group_mat g)
-                                 then M.findWithDefault defaultMaterial (fromJust $ group_mat g) (fromJust mmtllib)
+                           then if isJust (group_material g)
+                                 then M.findWithDefault defaultMaterial (fromJust $ group_material g) (fromJust mmtllib)
                                  else defaultMaterial
                            else defaultMaterial
                 let trans = (let (_,d) = material_dissolve mat in d < 1.0)
@@ -81,8 +81,6 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
                 if trans
                  then return $ (Nothing,Just $ FaceGroup offset ni mat)
                  else return $ (Just $ FaceGroup offset ni mat,Nothing) ) gs
-
-            putStrLn "Bar"
 
             let faces = catMaybes $ fst $ unzip ts
             let trans_faces = catMaybes $ snd $ unzip ts
@@ -338,7 +336,7 @@ render viewerstate = do
     clear [ColorBuffer,DepthBuffer]
     renderGrid
     foldl (\io (name,vbo) -> renderVBO Opaque name vbo io) (return ()) $ M.assocs $ currentVBOs viewerstate
-    foldl (\io (name,vbo) -> renderVBO Transparent name vbo io) (return ()) $ M.assocs $ transluentVBOs viewerstate
+    --foldl (\io (name,vbo) -> renderVBO Transparent name vbo io) (return ()) $ M.assocs $ transluentVBOs viewerstate
 
     matrixMode $= GL.Modelview 0
     loadIdentity
