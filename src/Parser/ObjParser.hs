@@ -137,7 +137,6 @@ parseVertices = do
 
 parseVertexGroup :: Integral i => GenParser Char ParserState (Maybe String, [[(i, Maybe i, Maybe i)]])
 parseVertexGroup = do
-    (ParserState (_,v_offset) (_,t_offset) (_,n_offset)) <- getState
     (material,groupname,smoothgroup) <- permute $
       (,,)
       <$?> (Nothing,
@@ -169,31 +168,41 @@ parseVertexGroup = do
                         return (v,n,t))
           <|> (do
                   v' <- natural
-                  return (fromIntegral (v'-1-v_offset),Nothing,Nothing))
+                  return (fromIntegral v',Nothing,Nothing))
     return (material, indices)
 
-assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [[(i, Maybe i, Maybe i)]] -> ([Vertex3 c], [Normal3 c], [TexCoord2 c])
-assembleObjMeshData (vertices, sparse_normals, sparse_texcoords) polygons =
-  let (meshvertices, maybe_meshnormals, maybe_meshtexcoords) = unzip3 $ do
+assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [[(i, Maybe i, Maybe i)]] -> i -> ([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i)
+assembleObjMeshData (orig_vertices, orig_normals, orig_texcoords) polygons offset =
+  let (more_vertices, maybe_meshnormals, maybe_meshtexcoords) = unzip3 $ do
           meshindex <- concat polygons
           let (vertex_index, maybe_normal_index, maybe_texcoord_index) = meshindex
-          return (vertices !! fromIntegral (vertex_index - 1),
-                  maybe Nothing (\i -> Just $ sparse_normals !! fromIntegral (i - 1)) maybe_normal_index,
-                  maybe Nothing (\i -> Just $ sparse_texcoords !! fromIntegral (i - 1)) maybe_texcoord_index
-                 )
-      meshnormals = catMaybes maybe_meshnormals
-      meshtexcoords = catMaybes maybe_meshtexcoords
-  in (meshvertices, meshnormals, meshtexcoords)
+          return (orig_vertices !! fromIntegral (vertex_index - 1),
+                  maybe Nothing (\i -> Just $ orig_normals !! fromIntegral (i - 1)) maybe_normal_index,
+                  maybe Nothing (\i -> Just $ orig_texcoords !! fromIntegral (i - 1)) maybe_texcoord_index)
+      unzipped_polygon_indices = unzip3 $ concat polygons
+      orig_vertex_indices = map (\i -> i - 1) $ fst3 $ unzipped_polygon_indices
+      orig_normal_indices = map (\i -> i - 1) $ catMaybes $ snd3 $ unzipped_polygon_indices
+      orig_texcoord_indices = map (\i -> i - 1) $ catMaybes $ thd3 $ unzipped_polygon_indices
+      more_vertices_size = fromIntegral $ length more_vertices
+      vertex_eq_normal = orig_vertex_indices == orig_normal_indices
+      vertex_eq_texcoord = orig_vertex_indices == orig_texcoord_indices
+      use_orig = (null orig_normals && null orig_texcoords) ||
+                 (vertex_eq_normal && null orig_texcoords) ||
+                 (vertex_eq_texcoord && null orig_normals) ||
+                 (vertex_eq_normal && vertex_eq_texcoord)
+  in if use_orig
+     then (orig_vertices, orig_normals, orig_texcoords, orig_vertex_indices)
+     else (more_vertices, catMaybes maybe_meshnormals, catMaybes maybe_meshtexcoords, [offset .. offset+more_vertices_size])
 
 assembleObjMeshGroups :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [[(i, Maybe i, Maybe i)]])] -> (([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i), M.Map String ObjVertexGroup)
 assembleObjMeshGroups sparsedata groupstuples =
   snd $ foldl (\(offset, ((accum_vertices, accum_normals, accum_texcoords, accum_indices), accum_groupmap)) (maybe_material, polygons) ->
-                 let (vertices, normals, texcoords) = assembleObjMeshData sparsedata polygons
-                     material_name = (maybe "" id maybe_material)
-                     vertices_size = fromIntegral $ length vertices
-                     result_meshdata = (accum_vertices ++ vertices, accum_normals ++ normals, accum_texcoords ++ texcoords, accum_indices ++ [offset .. offset+vertices_size])
-                     result_groupmap = M.insert material_name (ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral vertices_size)) accum_groupmap
-                 in (offset + vertices_size, (result_meshdata, result_groupmap)))
+                 let (vertices, normals, texcoords, indices) = assembleObjMeshData sparsedata polygons offset
+                     group_material_name = (maybe "" id maybe_material)
+                     indices_size = fromIntegral $ length indices
+                     result_meshdata = (accum_vertices ++ vertices, accum_normals ++ normals, accum_texcoords ++ texcoords, accum_indices ++ indices)
+                     result_groupmap = M.insert group_material_name (ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral indices_size)) accum_groupmap
+                 in (offset + indices_size, (result_meshdata, result_groupmap)))
                (0, (([], [], [], []), M.empty)) groupstuples
 
 parseObject :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => String -> GenParser Char ParserState (ObjMesh c i)
