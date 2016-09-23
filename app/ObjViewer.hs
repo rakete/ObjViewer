@@ -30,8 +30,8 @@ import Engine.Primitives
 
 data VBOData = VBOData
         { geometryId :: BufferObject
-        , normalsId :: BufferObject
-        , texcoordsId :: BufferObject
+        , normalsId :: Maybe BufferObject
+        , texcoordsId :: Maybe BufferObject
         , indicesId :: BufferObject
         , vboFaces :: [FaceGroup]
         }
@@ -55,13 +55,13 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
                 --triangulated_indiceslist :: [Indices GLuint] = concat $ map (triangulatePolygon (M.fromList $ zip [0..] vertexlist)) indiceslist
 
             putStrLn $ show $ last vertexlist
-            putStrLn $ show $ last normallist
-            putStrLn $ show $ last texcoordlist
+            --putStrLn $ show $ last normallist
+            --putStrLn $ show $ last texcoordlist
             putStrLn $ show $ last indiceslist
 
             vid <- newVBO ArrayBuffer vertexlist StaticDraw
-            nid <- newVBO ArrayBuffer normallist StaticDraw
-            tid <- newVBO ArrayBuffer texcoordlist StaticDraw
+            mnid <- if null normallist then return Nothing else newVBO ArrayBuffer normallist StaticDraw >>= return . Just
+            mtid <- if null texcoordlist then return Nothing else newVBO ArrayBuffer texcoordlist StaticDraw >>= return . Just
             iid <- newVBO ElementArrayBuffer indiceslist StaticDraw
 
             let gs = (M.elems $ groups mesh)
@@ -86,8 +86,8 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
             let trans_faces = catMaybes $ snd $ unzip ts
 
             (m,mt) <- io
-            let newvbo = VBOData vid nid tid iid faces
-            let trans_newvbo = VBOData vid nid tid iid trans_faces
+            let newvbo = VBOData vid mnid mtid iid faces
+            let trans_newvbo = VBOData vid mnid mtid iid trans_faces
             return $ case (null faces, null trans_faces) of
                 (False,False) -> (M.insert (objmesh_name mesh) newvbo m,M.insert (objmesh_name mesh) trans_newvbo mt)
                 (False,True) -> (M.insert (objmesh_name mesh) newvbo m,mt)
@@ -362,31 +362,41 @@ render viewerstate = do
 
         clientState VertexArray $= Enabled
         clientState IndexArray $= Enabled
-        clientState NormalArray $= Enabled
-        clientState TextureCoordArray $= Enabled
 
         bindBuffer ArrayBuffer $= (Just $ geometryId vbo)
         arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 nullPtr
 
-        bindBuffer ArrayBuffer $= (Just $ normalsId vbo)
-        arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 nullPtr
+        if isJust $ normalsId vbo then do
+          clientState NormalArray $= Enabled
+          bindBuffer ArrayBuffer $= normalsId vbo
+          arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 nullPtr
+        else do return ()
 
-        bindBuffer ArrayBuffer $= (Just $ texcoordsId vbo)
-        arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 nullPtr
+        if isJust $ texcoordsId vbo then do
+          clientState TextureCoordArray $= Enabled
+          bindBuffer ArrayBuffer $= texcoordsId vbo
+          arrayPointer TextureCoordArray $= VertexArrayDescriptor 2 Float 0 nullPtr
+        else do return ()
 
         bindBuffer ElementArrayBuffer $= (Just $ indicesId vbo)
         arrayPointer IndexArray $= VertexArrayDescriptor 1 UnsignedInt 0 nullPtr
 
-        foldl (renderFace mode) (return ()) $ vboFaces vbo
+        foldl (renderFaceGroup mode) (return ()) $ vboFaces vbo
 
-        clientState TextureCoordArray $= Disabled
-        clientState NormalArray $= Disabled
+        if isJust $ texcoordsId vbo then do
+          clientState TextureCoordArray $= Disabled
+        else do return ()
+
+        if isJust $ normalsId vbo then do
+          clientState NormalArray $= Disabled
+        else do return ()
+
         clientState IndexArray $= Disabled
         clientState VertexArray $= Disabled
 
-    renderFace mode io face = do
+    renderFaceGroup mode io face = do
         io
-        let mat = face_material face
+        let mat = facegroup_material face
         let (_,alpha) = material_dissolve mat
         showwire <- readIORef $ showWireframe viewerstate
 
@@ -394,11 +404,11 @@ render viewerstate = do
         polygonMode $= (Fill,Fill)
         polygonOffset $= (1.0,1.0)
 
-        let offset = face_offset face
-        let numindices = fromIntegral $ face_numIndices face
+        let offset = facegroup_offset face
+        let size = fromIntegral $ facegroup_size face
 
         --print offset
-        --print numindices
+        --print size
 
         case mode of
             Opaque -> do
@@ -407,7 +417,7 @@ render viewerstate = do
                 materialSpecular FrontAndBack $= material_specular mat
                 materialEmission FrontAndBack $= (fromMaybe (Color4 0.0 0.0 0.0 1.0) $ material_emission mat)
                 materialShininess FrontAndBack $= (realToFrac $ material_exponent mat)
-                drawElements Triangles numindices UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
+                drawElements Triangles size UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
                 --drawRangeElements Triangles (offset_n,offset_m) numindices UnsignedInt nullPtr
             Transparent -> do
                 --blendFunc $= (One,One)
@@ -417,7 +427,7 @@ render viewerstate = do
                 materialSpecular FrontAndBack $= material_specular mat
                 materialEmission FrontAndBack $= (fromMaybe (Color4 0.0 0.0 0.0 1.0) $ material_emission mat)
                 materialShininess FrontAndBack $= (realToFrac $ material_exponent mat)
-                drawElements Triangles numindices UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
+                drawElements Triangles size UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
                 --blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
 
         if showwire
@@ -428,15 +438,11 @@ render viewerstate = do
             lineWidth $= 0.5
             lineSmooth $= Disabled
             polygonMode $= (Line,Line)
-            drawElements Triangles numindices UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
+            drawElements Triangles size UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
             lighting $= Enabled
          else return ()
 
         polygonOffsetFill $= Disabled
-
-    --bufferPointer bo buf arr numc ctype = do
-    --    bindBuffer buf $= Just bo
-    --    arrayPointer arr $= VertexArrayDescriptor numc ctype 0 nullPtr
 
     renderGrid = do
         let mgrid = currentGrid viewerstate

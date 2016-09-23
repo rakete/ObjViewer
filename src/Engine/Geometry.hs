@@ -30,9 +30,9 @@ newVBO buf xs mode = do
 type Indices a = [a]
 
 data FaceGroup = FaceGroup
-    { face_offset :: Int
-    , face_numIndices :: Int
-    , face_material :: Material GLfloat
+    { facegroup_offset :: Int
+    , facegroup_size :: Int
+    , facegroup_material :: Material GLfloat
     }
     deriving Show
 
