@@ -185,11 +185,11 @@ initGL = do
         normalize $= Enabled
         lighting $= Enabled
 
-        ambient (Light 0) $= Color4 0.2 0.2 0.2 1.0
-        diffuse (Light 0) $= Color4 0.3 0.3 0.3 1.0
-        specular (Light 0) $= Color4 0.4 0.4 0.4 1.0
-        position (Light 0) $= Vertex4 4.0 1.0 0.0 1.0
-        spotDirection (Light 0) $= Normal3 (-1.0) 0.0 0.0
+        ambient (Light 0) $= Color4 0.5 0.5 0.5 1.0
+        diffuse (Light 0) $= Color4 0.5 0.5 0.5 1.0
+        specular (Light 0) $= Color4 0.5 0.5 0.5 1.0
+        position (Light 0) $= Vertex4 0.0 0.0 0.0 1.0
+        spotDirection (Light 0) $= Normal3 0.0 0.0 1.0
         spotExponent (Light 0) $= 1.0
         light (Light 0) $= Enabled
 
@@ -402,21 +402,21 @@ render viewerstate = do
 
         case mode of
             Opaque -> do
-                materialAmbient Front $= material_ambient mat
-                materialDiffuse Front $= material_diffuse mat
-                materialSpecular Front $= material_specular mat
-                materialEmission Front $= (fromMaybe (Color4 0.0 0.0 0.0 0.0) $ material_emission mat)
-                materialShininess Front $= (realToFrac $ material_exponent mat)
+                materialAmbient FrontAndBack $= material_ambient mat
+                materialDiffuse FrontAndBack $= material_diffuse mat
+                materialSpecular FrontAndBack $= material_specular mat
+                materialEmission FrontAndBack $= (fromMaybe (Color4 0.0 0.0 0.0 1.0) $ material_emission mat)
+                materialShininess FrontAndBack $= (realToFrac $ material_exponent mat)
                 drawElements Triangles numindices UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
                 --drawRangeElements Triangles (offset_n,offset_m) numindices UnsignedInt nullPtr
             Transparent -> do
                 --blendFunc $= (One,One)
-                materialAmbient Front $= material_ambient mat
+                materialAmbient FrontAndBack $= material_ambient mat
                 let (Color4 diffuse_r diffuse_g diffuse_b _) = material_diffuse mat
-                materialDiffuse Front $= Color4 diffuse_r diffuse_g diffuse_b (realToFrac alpha)
-                materialSpecular Front $= material_specular mat
-                materialEmission Front $= (fromMaybe (Color4 0.0 0.0 0.0 0.0) $ material_emission mat)
-                materialShininess Front $= (realToFrac $ material_exponent mat)
+                materialDiffuse FrontAndBack $= Color4 diffuse_r diffuse_g diffuse_b (realToFrac alpha)
+                materialSpecular FrontAndBack $= material_specular mat
+                materialEmission FrontAndBack $= (fromMaybe (Color4 0.0 0.0 0.0 1.0) $ material_emission mat)
+                materialShininess FrontAndBack $= (realToFrac $ material_exponent mat)
                 drawElements Triangles numindices UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
                 --blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
 
