@@ -129,7 +129,7 @@ initStateIO = do
     orbitx <- newIORef ((-1),0.0)
     orbity <- newIORef ((-1),0.0)
     z <- newIORef (0,20.0)
-    showwire <- newIORef False
+    showwire <- newIORef True
     return $ ViewerState Nothing Nothing Nothing M.empty M.empty isdirty quitnow cameramode orbitx orbity z showwire
 
 updateFileState :: Maybe FilePath -> Maybe (ObjScene GLfloat GLuint) -> StateT ViewerState IO ()
