@@ -29,23 +29,21 @@ import Engine.Geometry
 
 import Utility.Map
 import Utility.List
+import Utility.Tuple
 
 type ObjMaterial a = Material a
 
-data ObjVertexGroup a = ObjVertexGroup
+data ObjVertexGroup = ObjVertexGroup
     { group_material :: Maybe String
-    , group_groupname :: Maybe String
-    , group_smoothgroup :: Maybe String
-    , group_indices :: Indices a
     , group_offset :: Int
-    , group_numIndices :: Int
+    , group_size :: Int
     }
     deriving Show
 
 data ObjMesh a b = ObjMesh
     { objmesh_name :: String
-    , objmesh_data :: ([Vertex3 a],[Normal3 a],[TexCoord2 a],Indices b)
-    , groups :: M.Map b (ObjVertexGroup b)
+    , objmesh_data :: ([Vertex3 a], [Normal3 a], [TexCoord2 a], Indices b)
+    , groups :: M.Map String ObjVertexGroup
     }
     deriving Show
 
@@ -137,7 +135,7 @@ parseVertices = do
 
     return $ (vertex_list,normal_list,texcoord_list)
 
-parseVertexGroup :: Integral i => GenParser Char ParserState (Maybe String,Maybe String,Maybe String,[[(i,Maybe i,Maybe i)]])
+parseVertexGroup :: Integral i => GenParser Char ParserState (Maybe String, [[(i, Maybe i, Maybe i)]])
 parseVertexGroup = do
     (ParserState (_,v_offset) (_,t_offset) (_,n_offset)) <- getState
     (material,groupname,smoothgroup) <- permute $
@@ -159,81 +157,54 @@ parseVertexGroup = do
         many3 $ try (do
                         v <- do
                           v' <- natural
-                          return $ fromIntegral (v'-1-v_offset)
+                          return $ fromIntegral v' --(v'-1-v_offset)
                         symbol "/"
                         t <- option Nothing $ do
                           t' <- natural
-                          return $ Just $ fromIntegral (t'-1-t_offset)
+                          return $ Just $ fromIntegral t' --(t'-1-t_offset)
                         symbol "/"
                         n <- option Nothing $ do
                           n' <- natural
-                          return $ Just $ fromIntegral (n'-1-n_offset)
+                          return $ Just $ fromIntegral n' --(n'-1-n_offset)
                         return (v,n,t))
           <|> (do
                   v' <- natural
                   return (fromIntegral (v'-1-v_offset),Nothing,Nothing))
-    return (material, groupname, smoothgroup, indices)
+    return (material, indices)
+
+assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [[(i, Maybe i, Maybe i)]] -> ([Vertex3 c], [Normal3 c], [TexCoord2 c])
+assembleObjMeshData (vertices, sparse_normals, sparse_texcoords) polygons =
+  let (meshvertices, maybe_meshnormals, maybe_meshtexcoords) = unzip3 $ do
+          meshindex <- concat polygons
+          let (vertex_index, maybe_normal_index, maybe_texcoord_index) = meshindex
+          return (vertices !! fromIntegral (vertex_index - 1),
+                  maybe Nothing (\i -> Just $ sparse_normals !! fromIntegral (i - 1)) maybe_normal_index,
+                  maybe Nothing (\i -> Just $ sparse_texcoords !! fromIntegral (i - 1)) maybe_texcoord_index
+                 )
+      meshnormals = catMaybes maybe_meshnormals
+      meshtexcoords = catMaybes maybe_meshtexcoords
+  in (meshvertices, meshnormals, meshtexcoords)
+
+assembleObjMeshGroups :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [[(i, Maybe i, Maybe i)]])] -> (([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i), M.Map String ObjVertexGroup)
+assembleObjMeshGroups sparsedata groupstuples =
+  snd $ foldl (\(offset, ((accum_vertices, accum_normals, accum_texcoords, accum_indices), accum_groupmap)) (maybe_material, polygons) ->
+                 let (vertices, normals, texcoords) = assembleObjMeshData sparsedata polygons
+                     material_name = (maybe "" id maybe_material)
+                     vertices_size = fromIntegral $ length vertices
+                     result_meshdata = (accum_vertices ++ vertices, accum_normals ++ normals, accum_texcoords ++ texcoords, accum_indices ++ [offset .. offset+vertices_size])
+                     result_groupmap = M.insert material_name (ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral vertices_size)) accum_groupmap
+                 in (offset + vertices_size, (result_meshdata, result_groupmap)))
+               (0, (([], [], [], []), M.empty)) groupstuples
 
 parseObject :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => String -> GenParser Char ParserState (ObjMesh c i)
 parseObject fallbackname = do
     name <- option fallbackname $ do
                 reserved "o"
                 identifier >>= return
-    (vertices,normals,texcoords) <- parseVertices
+    sparsedata <- parseVertices
     groupstuples <- many1 parseVertexGroup
-    let (_,_,_,allParsedIndices) = unzip4 groupstuples
-    let (indicesMap,fitted_vertices,fitted_normals,fitted_texcoords,_) = fitVertices vertices normals texcoords allParsedIndices
-    let verticesMap = listIntMap $ reverse fitted_vertices
-
-    -- fold the list of tuples returned by parseVertexGroup and assemble the ObjVertexGroup structures, keeping the
-    -- correct offsets for every group, also triangulate the indices
-    let (groups,fitted_indices,_) = foldl (\(groups',indices',offset') (material, groupname, smoothgroup, iss) ->
-                                        let iss' = concat $ map (snd . triangulatePolygon verticesMap) $ fitIndices indicesMap iss []
-                                            nextoffset = offset' + (fromIntegral $ length iss')
-                                        in (groups' ++ [ObjVertexGroup material groupname smoothgroup iss' offset' (nextoffset-offset')], indices' ++ iss',nextoffset)) ([],[],0) groupstuples
-
-    let meshdata = (reverse fitted_vertices,reverse fitted_normals,reverse fitted_texcoords,fitted_indices)
-
-    return $ ObjMesh name meshdata $ listIntMap groups
-
-    where
-
-    -- fits the indices from 'many1 parseVertexGroup' and the vertex/normal/texcoord triples that have been
-    -- returned by parseVertices so that we can put everything into vbos and render it via glDrawElements
-    --
-    -- returns a map (vertexTriple -> newIndex) and the lists of vertices/normals/texcoords that are fitted
-    -- to the newIndices
-    fitVertices verts norms texcs iss = foldr fit (M.empty,[],[],[],[]) iss' where
-        iss' = concat $ concat iss
-        vsm = listIntMap verts
-        nsm = listIntMap norms
-        tsm = listIntMap texcs
-        fit (vi,ni,ti) (m,vs,ns,ts,is) =
-            case M.lookup (vi,ni,ti) m of
-                Just i -> (m,vs,ns,ts,i : is)
-                Nothing ->
-                    let newIndex = fromIntegral $ length vs
-                        vs' = (vsm M.! vi) : vs
-                        ns' = if isJust ni
-                               then (M.findWithDefault (Normal3 1.0 0.0 0.0) (fromJust ni) nsm) : ns
-                               else (Normal3 0.0 1.0 0.0) : ns
-                        ts' = if isJust ti
-                               then (M.findWithDefault (TexCoord2 0.0 0.0) (fromJust ti) tsm) : ts
-                               else (TexCoord2 0.0 0.0) : ts
-                        is' = newIndex : is
-                    in (M.insert (vi,ni,ti) (fromIntegral newIndex) m, vs', ns', ts', is')
-
-    -- lookup the vertexTriples in the map we created with fitVertices to re-create the 'nice formatted' IndicesList
-    -- we need this mostly to triangulate the mesh, and
-    fitIndices indicesMap [] xs = xs
-    fitIndices indicesMap (polyis:iss) xs = fitIndices indicesMap iss (xs ++ [classify $ fit polyis []]) where
-        fit [] xs = xs
-        fit (i:is) xs = fit is (xs ++ [indicesMap M.! i])
-        classify xs =
-            case length xs of
-                3 -> (\(a:b:c:[]) -> [a,b,c]) xs
-                4 -> (\(a:b:c:d:[]) -> [a,b,c,d]) xs
-                otherwise -> xs
+    let (meshdata, meshgroups) = assembleObjMeshGroups sparsedata groupstuples
+    return $ ObjMesh name meshdata meshgroups
 
 parseObjScene :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => String -> GenParser Char ParserState (Maybe FilePath,ObjScene c i)
 parseObjScene fallbackname = do

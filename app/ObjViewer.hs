@@ -68,7 +68,7 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
             ts <- sequence $ map (\g -> do
                 --let is = indicesAsList $ vertex_indices g
                 let offset = group_offset g
-                let ni = group_numIndices g
+                let ni = group_size g
                 let mat = if isJust mmtllib
                            then if isJust (group_material g)
                                  then M.findWithDefault defaultMaterial (fromJust $ group_material g) (fromJust mmtllib)
