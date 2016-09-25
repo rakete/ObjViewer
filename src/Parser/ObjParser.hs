@@ -21,7 +21,9 @@ import Data.Maybe
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 import System.Directory
+
 import Data.List
+import Data.Array
 
 import Math.Vector
 import Engine.Texture
@@ -95,20 +97,66 @@ parseComponent = do
         Right y -> fromRational((fromRational . toRational $ y) * sign)
 
 data ParserState = ParserState
-    { num_vertices :: (Integer,Integer)
-    , num_texcoords :: (Integer,Integer)
-    , num_normals :: (Integer,Integer)
-    }
+    { parserstate_groupname :: Maybe String,
+      parserstate_smoothgroup :: Maybe String,
+      parserstate_material :: Maybe String }
 
 initParserState :: ParserState
 initParserState = ParserState
-    { num_vertices = (0,0)
-    , num_texcoords = (0,0)
-    , num_normals = (0,0)
-    }
+    { parserstate_groupname = Nothing,
+      parserstate_smoothgroup = Nothing,
+      parserstate_material = Nothing }
+
+parseSmoothGroup :: GenParser Char ParserState ()
+parseSmoothGroup = do
+  (maybe_groupname, maybe_smoothgroup) <- permute $
+      (,)
+      <$?> (Nothing,
+           do reserved "g"
+              groupname <- option "off" identifier
+              return $ Just groupname)
+      <|?> (Nothing,
+           do reserved "s"
+              smoothgroup <- option "off" identifier
+              return $ Just smoothgroup)
+
+  if isJust maybe_groupname
+    then modifyState (\p -> p{ parserstate_groupname = if maybe_groupname == (Just "off") then Nothing else maybe_groupname })
+    else return ()
+  if isJust maybe_smoothgroup
+    then modifyState (\p -> p{ parserstate_smoothgroup = if maybe_smoothgroup == (Just "off") then Nothing else maybe_smoothgroup })
+    else return ()
+
+parseMaterialGroup :: GenParser Char ParserState ()
+parseMaterialGroup = do
+  (maybe_material, maybe_groupname, maybe_smoothgroup) <- permute $
+      (,,)
+      <$?> (Nothing,
+            do reserved "usemtl"
+               mat <- identifier
+               return $ Just mat)
+      <|?> (Nothing,
+           do reserved "g"
+              groupname <- option "off" identifier
+              return $ Just groupname)
+      <|?> (Nothing,
+           do reserved "s"
+              smoothgroup <- option "off" identifier
+              return $ Just smoothgroup)
+
+  if isJust maybe_material
+    then modifyState (\p -> p{ parserstate_material = maybe_material })
+    else return ()
+  if isJust maybe_groupname
+    then modifyState (\p -> p{ parserstate_groupname = if maybe_groupname == (Just "off") then Nothing else maybe_groupname })
+    else return ()
+  if isJust maybe_smoothgroup
+    then modifyState (\p -> p{ parserstate_smoothgroup = if maybe_smoothgroup == (Just "off") then Nothing else maybe_smoothgroup })
+    else return ()
 
 parseVertices :: (VertexComponent c, Fractional c) => GenParser Char ParserState ([Vertex3 c], [Normal3 c], [TexCoord2 c])
 parseVertices = do
+    parseMaterialGroup
     (vertex_list,normal_list,texcoord_list) <- permute $
         (,,)
         <$$> (many1 $ do
@@ -129,57 +177,60 @@ parseVertices = do
             v <- parseComponent
             return $ TexCoord2 u v)
 
-    updateState (\p -> p{ num_vertices = (\(a,b) -> (fromIntegral $ length vertex_list, a+b)) $ num_vertices p} )
-    updateState (\p -> p{ num_normals = (\(a,b) -> (fromIntegral $ length normal_list, a+b)) $ num_normals p} )
-    updateState (\p -> p{ num_texcoords = (\(a,b) -> (fromIntegral $ length texcoord_list, a+b)) $ num_texcoords p} )
+    return $ (vertex_list, normal_list, texcoord_list)
 
-    return $ (vertex_list,normal_list,texcoord_list)
+parseVertexGroup :: (Enum c, RealFloat c, VertexComponent c, Integral i) => [Vertex3 c] -> GenParser Char ParserState (Maybe String, [(Maybe String, [(i, Maybe i, Maybe i)])])
+parseVertexGroup vertices = do
+    parseMaterialGroup
+    maybe_material <- getState >>= return . parserstate_material
 
-parseVertexGroup :: Integral i => GenParser Char ParserState (Maybe String, [[(i, Maybe i, Maybe i)]])
-parseVertexGroup = do
-    (material,groupname,smoothgroup) <- permute $
-      (,,)
-      <$?> (Nothing,
-            do reserved "usemtl"
-               mat <- identifier
-               return $ Just mat)
-      <|?> (Nothing,
-           do reserved "g"
-              groupname <- option "" identifier
-              return $ Just groupname)
-      <|?> (Nothing,
-           do reserved "s"
-              smoothgroup <- option "" identifier
-              return $ Just smoothgroup)
-    indices <- many1 $ do
+    vertexgroup <- many1Till (do
+        parseSmoothGroup
+        maybe_smoothgroup <- getState >>= return . parserstate_smoothgroup
         reserved "f"
-        many3 $ try (do
-                        v <- do
-                          v' <- natural
-                          return $ fromIntegral v' --(v'-1-v_offset)
-                        symbol "/"
-                        t <- option Nothing $ do
-                          t' <- natural
-                          return $ Just $ fromIntegral t' --(t'-1-t_offset)
-                        symbol "/"
-                        n <- option Nothing $ do
-                          n' <- natural
-                          return $ Just $ fromIntegral n' --(n'-1-n_offset)
-                        return (v,n,t))
-          <|> (do
-                  v' <- natural
-                  return (fromIntegral v',Nothing,Nothing))
-    return (material, indices)
+        face <- many3 $ try (do
+                                v <- do
+                                  v' <- natural
+                                  return $ fromIntegral v' --(v'-1-v_offset)
+                                symbol "/"
+                                t <- option Nothing $ do
+                                  t' <- natural
+                                  return $ Just $ fromIntegral t' --(t'-1-t_offset)
+                                symbol "/"
+                                n <- option Nothing $ do
+                                  n' <- natural
+                                  return $ Just $ fromIntegral n' --(n'-1-n_offset)
+                                return (v, n, t))
+                <|> (do
+                        v' <- natural
+                        return (fromIntegral v',Nothing,Nothing))
+        case face of
+          (a:b:c:[]) -> return (maybe_smoothgroup, [a,b,c])
+          _ -> let array_vertices = array (0,length vertices) $ zip [0..] vertices
+                   polygon_indices = fst3 $ unzip3 face
+                   polygon_vertices = M.fromList $ [(i,v) | i <- polygon_indices, v <- map (\i -> array_vertices ! (fromIntegral i)) polygon_indices]
+                   polygon = M.fromList $ zip polygon_indices face
+                   (_, triangle_indices) = triangulatePolygon polygon_vertices polygon_indices
+                   triangles = map (\i -> fromJust $ M.lookup i polygon) triangle_indices
+               in return (maybe_smoothgroup, triangles))
+        (try $ lookAhead $ permute $ (,,)
+          <$$> ((reserved "usemtl" >> identifier) <|> (eof >> return ""))
+          <|?> (Nothing, reserved "g" >> option "off" identifier >>= return . Just)
+          <|?> (Nothing, reserved "s" >> option "off" identifier >>= return . Just))
+    return (maybe_material, vertexgroup)
 
-assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [[(i, Maybe i, Maybe i)]] -> i -> ([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i)
+assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [(i, Maybe i, Maybe i)])] -> i -> ([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i)
 assembleObjMeshData (orig_vertices, orig_normals, orig_texcoords) polygons offset =
-  let (more_vertices, maybe_meshnormals, maybe_meshtexcoords) = unzip3 $ do
-          meshindex <- concat polygons
+  let array_vertices = array (0,length orig_vertices) $ zip [0..] orig_vertices
+      array_normals = array (0,length orig_normals) $ zip [0..] orig_normals
+      array_texcoords = array (0,length orig_texcoords) $ zip [0..] orig_texcoords
+      (more_vertices, maybe_meshnormals, maybe_meshtexcoords) = unzip3 $ do
+          meshindex <- concatMap snd polygons
           let (vertex_index, maybe_normal_index, maybe_texcoord_index) = meshindex
-          return (orig_vertices !! fromIntegral (vertex_index - 1),
-                  maybe Nothing (\i -> Just $ orig_normals !! fromIntegral (i - 1)) maybe_normal_index,
-                  maybe Nothing (\i -> Just $ orig_texcoords !! fromIntegral (i - 1)) maybe_texcoord_index)
-      unzipped_polygon_indices = unzip3 $ concat polygons
+          return (array_vertices ! fromIntegral (vertex_index - 1),
+                  maybe Nothing (\i -> Just $ array_normals ! fromIntegral (i - 1)) maybe_normal_index,
+                  maybe Nothing (\i -> Just $ array_texcoords ! fromIntegral (i - 1)) maybe_texcoord_index)
+      unzipped_polygon_indices = unzip3 $ concatMap snd polygons
       orig_vertex_indices = map (\i -> i - 1) $ fst3 $ unzipped_polygon_indices
       orig_normal_indices = map (\i -> i - 1) $ catMaybes $ snd3 $ unzipped_polygon_indices
       orig_texcoord_indices = map (\i -> i - 1) $ catMaybes $ thd3 $ unzipped_polygon_indices
@@ -192,16 +243,15 @@ assembleObjMeshData (orig_vertices, orig_normals, orig_texcoords) polygons offse
                  (vertex_eq_normal && vertex_eq_texcoord)
   in if use_orig
      then (orig_vertices, orig_normals, orig_texcoords, orig_vertex_indices)
-     else (more_vertices, catMaybes maybe_meshnormals, catMaybes maybe_meshtexcoords, [offset .. offset+more_vertices_size])
+     else (more_vertices, catMaybes maybe_meshnormals, catMaybes maybe_meshtexcoords, [offset .. offset+more_vertices_size-1])
 
-assembleObjMeshGroups :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [[(i, Maybe i, Maybe i)]])] -> (([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i), M.Map String ObjVertexGroup)
+assembleObjMeshGroups :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [(Maybe String, [(i, Maybe i, Maybe i)])])] -> (([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i), M.Map (Maybe String, i) ObjVertexGroup)
 assembleObjMeshGroups sparsedata groupstuples =
   snd $ foldl (\(offset, ((accum_vertices, accum_normals, accum_texcoords, accum_indices), accum_groupmap)) (maybe_material, polygons) ->
                  let (vertices, normals, texcoords, indices) = assembleObjMeshData sparsedata polygons offset
-                     group_material_name = (maybe "" id maybe_material)
                      indices_size = fromIntegral $ length indices
                      result_meshdata = (accum_vertices ++ vertices, accum_normals ++ normals, accum_texcoords ++ texcoords, accum_indices ++ indices)
-                     result_groupmap = M.insert group_material_name (ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral indices_size)) accum_groupmap
+                     result_groupmap = M.insert (maybe_material, offset) (ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral indices_size)) accum_groupmap
                  in (offset + indices_size, (result_meshdata, result_groupmap)))
                (0, (([], [], [], []), M.empty)) groupstuples
 
@@ -211,7 +261,7 @@ parseObject fallbackname = do
                 reserved "o"
                 identifier >>= return
     sparsedata <- parseVertices
-    groupstuples <- many1 parseVertexGroup
+    groupstuples <- many1 $ parseVertexGroup $ fst3 sparsedata
     let (meshdata, meshgroups) = assembleObjMeshGroups sparsedata groupstuples
     return $ ObjMesh name meshdata meshgroups
 
@@ -357,3 +407,13 @@ parseMtlFile path = do
 
 many3 :: GenParser tok st a -> GenParser tok st [a]
 many3 p = do{ x <- p; y <- p; z <- p; xs <- many p; return (x:y:z:xs) }
+
+many1Till :: (Stream s m t, Show end) =>
+              ParsecT s u m a ->
+              ParsecT s u m end ->
+              ParsecT s u m [a]
+many1Till p end = do
+  notFollowedBy end
+  first <- p
+  rest <- manyTill p end
+  return (first:rest)
