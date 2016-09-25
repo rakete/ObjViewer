@@ -413,7 +413,7 @@ many1Till :: (Stream s m t, Show end) =>
               ParsecT s u m end ->
               ParsecT s u m [a]
 many1Till p end = do
-  notFollowedBy end
+  --notFollowedBy end
   first <- p
   rest <- manyTill p end
   return (first:rest)
