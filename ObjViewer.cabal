@@ -34,14 +34,14 @@ library
                   Math.Vector
   build-depends:
                 base >= 4.7 && < 5,
-                Imlib,
-                containers,
-                array,
-                transformers,
-                template-haskell,
-                OpenGL,
-                directory,
-                parsec
+                Imlib == 0.1.2,
+                containers == 0.5.7.1,
+                array == 0.5.1.1,
+                transformers == 0.5.2.0,
+                template-haskell == 2.11.0.0,
+                OpenGL == 3.0.1.0,
+                directory == 1.2.6.2,
+                parsec == 3.1.11
   default-language:    Haskell2010
 
 executable ObjViewer-exe
@@ -49,13 +49,13 @@ executable ObjViewer-exe
   main-is:             ObjViewer.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-                base,
+                base >= 4.7 && < 5,
                 ObjViewer,
-                mtl,
-                OpenGL,
-                GLFW,
-                containers,
-                deepseq
+                mtl == 2.2.1,
+                OpenGL == 3.0.1.0,
+                GLFW == 0.5.2.5,
+                containers == 0.5.7.1,
+                deepseq == 1.4.2.0
   default-language:    Haskell2010
 
 test-suite ObjViewer-test
