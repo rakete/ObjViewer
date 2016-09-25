@@ -58,9 +58,8 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
             mtid <- if null texcoordlist then return Nothing else newVBO ArrayBuffer texcoordlist StaticDraw >>= return . Just
             iid <- newVBO ElementArrayBuffer indiceslist StaticDraw
 
-            let gs = (M.elems $ groups mesh)
+            let gs = (M.elems $ objmesh_groups mesh)
             ts <- sequence $ map (\g -> do
-                --let is = indicesAsList $ vertex_indices g
                 let offset = group_offset g
                 let ni = group_size g
                 let mat = if isJust mmtllib

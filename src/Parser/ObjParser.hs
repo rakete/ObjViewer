@@ -43,7 +43,7 @@ data ObjVertexGroup = ObjVertexGroup
 data ObjMesh a b = ObjMesh
     { objmesh_name :: String
     , objmesh_data :: ([Vertex3 a], [Normal3 a], [TexCoord2 a], Indices b)
-    , groups :: M.Map String ObjVertexGroup
+    , objmesh_groups :: M.Map (Maybe String, b) ObjVertexGroup
     }
     deriving Show
 
