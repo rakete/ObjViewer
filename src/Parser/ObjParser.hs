@@ -255,68 +255,68 @@ parseObjMaterial = do
     name <- identifier
     permute $
         (createMaterial name)
-        <$$> (do -- a
+        <$?> (material_ambient defaultMaterial, do -- a
             reserved "Ka"
             cr <- parseComponent
             cg <- parseComponent
             cb <- parseComponent
             return $ Color4 cr cg cb 1.0)
-        <||> (do -- b
+        <|?> (material_diffuse defaultMaterial, do -- b
             reserved "Kd"
             cr <- parseComponent
             cg <- parseComponent
             cb <- parseComponent
             return $ Color4 cr cg cb 1.0)
-        <||> (do -- c
+        <|?> (material_specular defaultMaterial, do -- c
             reserved "Ks"
             cr <- parseComponent
             cg <- parseComponent
             cb <- parseComponent
             return $ Color4 cr cg cb 1.0)
-        <|?> (Nothing,do -- d
+        <|?> (material_filter defaultMaterial, do -- d
             reserved "Tf"
             cr <- parseComponent
             cg <- parseComponent
             cb <- parseComponent
-            return $ Just $ Color4 cr cg cb 1.0)
-        <|?> (Nothing,do -- e
+            return $ Color4 cr cg cb 1.0)
+        <|?> (material_emission defaultMaterial, do -- e
             reserved "Ke"
             cr <- parseComponent
             cg <- parseComponent
             cb <- parseComponent
-            return $ Just $ Color4 cr cg cb 1.0)
-        <||> (do -- f
+            return $ Color4 cr cg cb 1.0)
+        <|?> (material_exponent defaultMaterial, do -- f
             reserved "Ns"
             x <- parseComponent
             return x)
-        <||> (do -- g
+        <|?> (material_dissolve defaultMaterial, do -- g
             reserved "d"
             b <- option False $ do
                 reserved "-halo"
                 return True
             x <- parseComponent
             return (b,x))
-        <||> (do -- h
+        <|?> (material_illum defaultMaterial, do -- h
             reserved "illum"
             x <- natural
             return $ fromInteger x)
-        <|?> (Nothing,do -- i
+        <|?> (material_sharpness defaultMaterial, do -- i
             reserved "sharpness"
             x <- natural
-            return $ Just $ fromInteger x)
-        <|?> (Nothing,do -- j
+            return $ fromInteger x)
+        <|?> (material_refraction defaultMaterial, do -- j
             reserved "Ni"
             x <- parseComponent
-            return $ Just x)
-        <|?> (Nothing,do -- k
+            return x)
+        <|?> (Nothing, do -- k
             reserved "map_Ka"
             x <- identifier
             return $ Just (x,Nothing))
-        <|?> (Nothing,do -- l
+        <|?> (Nothing, do -- l
             reserved "map_Kd"
             x <- identifier
             return $ Just (x,Nothing))
-        <|?> (Nothing,do -- m
+        <|?> (Nothing, do -- m
             reserved "map_Ks"
             x <- identifier
             return $ Just (x,Nothing))

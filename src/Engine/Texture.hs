@@ -35,32 +35,32 @@ data Material a = Material
     , material_ambient :: Color4 a
     , material_diffuse :: Color4 a
     , material_specular :: Color4 a
-    , material_filter :: Maybe (Color4 a)
-    , material_emission :: Maybe (Color4 a)
+    , material_filter :: Color4 a
+    , material_emission ::  Color4 a
     , material_exponent :: Float
     , material_dissolve :: (Bool,Float)
     , material_illum :: Int
-    , material_sharpness :: Maybe Int
-    , material_refraction :: Maybe Float
+    , material_sharpness :: Int
+    , material_refraction :: Float
     , material_ambientTexture :: Maybe (String,Maybe TextureObject)
     , material_diffuseTexture :: Maybe (String,Maybe TextureObject)
     , material_specularTexture :: Maybe (String,Maybe TextureObject)
     }
     deriving Show
 
-defaultMaterial :: Material GLfloat
+defaultMaterial ::  (Fractional c) => Material c
 defaultMaterial = Material
     { material_name = "default"
-    , material_ambient = Color4 1.0 1.0 1.0 1.0
+    , material_ambient = Color4 0.5 0.5 0.5 1.0
     , material_diffuse = Color4 1.0 1.0 1.0 1.0
-    , material_specular = Color4 1.0 1.0 1.0 1.0
-    , material_filter = Nothing
-    , material_emission = Nothing
+    , material_specular = Color4 0.0 0.0 0.0 1.0
+    , material_filter = Color4 0.0 0.0 0.0 1.0
+    , material_emission = Color4 0.0 0.0 0.0 1.0
     , material_exponent = 1.0
     , material_dissolve = (False,1.0)
     , material_illum = 0
-    , material_sharpness = Nothing
-    , material_refraction = Nothing
+    , material_sharpness = 0
+    , material_refraction = 1.0
     , material_ambientTexture = Nothing
     , material_diffuseTexture = Nothing
     , material_specularTexture = Nothing

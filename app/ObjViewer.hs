@@ -402,7 +402,7 @@ render viewerstate = do
                 materialAmbient FrontAndBack $= material_ambient mat
                 materialDiffuse FrontAndBack $= material_diffuse mat
                 materialSpecular FrontAndBack $= material_specular mat
-                materialEmission FrontAndBack $= (fromMaybe (Color4 0.0 0.0 0.0 1.0) $ material_emission mat)
+                materialEmission FrontAndBack $= material_emission mat
                 materialShininess FrontAndBack $= (realToFrac $ material_exponent mat)
                 drawElements Triangles size UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
                 --drawRangeElements Triangles (offset_n,offset_m) numindices UnsignedInt nullPtr
@@ -412,7 +412,7 @@ render viewerstate = do
                 let (Color4 diffuse_r diffuse_g diffuse_b _) = material_diffuse mat
                 materialDiffuse FrontAndBack $= Color4 diffuse_r diffuse_g diffuse_b (realToFrac alpha)
                 materialSpecular FrontAndBack $= material_specular mat
-                materialEmission FrontAndBack $= (fromMaybe (Color4 0.0 0.0 0.0 1.0) $ material_emission mat)
+                materialEmission FrontAndBack $= material_emission mat
                 materialShininess FrontAndBack $= (realToFrac $ material_exponent mat)
                 drawElements Triangles size UnsignedInt (plusPtr nullPtr (offset*(sizeOf (undefined :: Word32))))
                 --blendFunc $= (SrcAlpha, OneMinusSrcAlpha)
