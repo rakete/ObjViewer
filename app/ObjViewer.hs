@@ -179,7 +179,7 @@ initGL = do
         clearColor $= Color4 0.9 0.9 0.9 1.0
         depthFunc $= Just Lequal
         frontFace $= CCW
-        cullFace $= Just Back
+        cullFace $= Nothing
 
         colorMaterial $= Nothing
         normalize $= Enabled
