@@ -52,12 +52,6 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
             putStrLn $ "Uploading " ++ (objmesh_name mesh) ++ "..."
 
             let (vertexlist,normallist,texcoordlist,indiceslist) = (objmesh_data mesh) :: ([Vertex3 GLfloat],[Normal3 GLfloat],[TexCoord2 GLfloat],Indices GLuint)
-                --triangulated_indiceslist :: [Indices GLuint] = concat $ map (triangulatePolygon (M.fromList $ zip [0..] vertexlist)) indiceslist
-
-            putStrLn $ show $ last vertexlist
-            --putStrLn $ show $ last normallist
-            --putStrLn $ show $ last texcoordlist
-            putStrLn $ show $ last indiceslist
 
             vid <- newVBO ArrayBuffer vertexlist StaticDraw
             mnid <- if null normallist then return Nothing else newVBO ArrayBuffer normallist StaticDraw >>= return . Just
@@ -75,9 +69,6 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
                                  else defaultMaterial
                            else defaultMaterial
                 let trans = (let (_,d) = material_dissolve mat in d < 1.0)
-                --iid <- newVBO ElementArrayBuffer is StaticDraw
-                --print offset
-                --print ni
                 if trans
                  then return $ (Nothing,Just $ FaceGroup offset ni mat)
                  else return $ (Just $ FaceGroup offset ni mat,Nothing) ) gs
@@ -406,9 +397,6 @@ render viewerstate = do
 
         let offset = facegroup_offset face
         let size = fromIntegral $ facegroup_size face
-
-        --print offset
-        --print size
 
         case mode of
             Opaque -> do
