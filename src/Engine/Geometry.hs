@@ -3,7 +3,6 @@ module Engine.Geometry
 , Indices
 , FaceGroup(..)
 , Mesh(..)
-, renderMeshWith
 , create2DGrid
 , triangulatePolygon
 ) where
@@ -49,40 +48,6 @@ data Mesh = Mesh
     , mesh_color :: Maybe (Color4 GLfloat)
     }
     deriving Show
-
-renderMeshWith :: Mesh -> IO () -> IO ()
-renderMeshWith mesh fio = do
-    clientState VertexArray $= Enabled
-    clientState IndexArray $= Enabled
-
-    let n = fromIntegral $ mesh_numIndices mesh
-
-    bindBuffer ArrayBuffer $= (Just $ mesh_vertices mesh)
-    arrayPointer VertexArray $= VertexArrayDescriptor 3 Float 0 nullPtr
-
-    _ <- case mesh_normals mesh of
-            (Just nid) -> do
-                clientState NormalArray $= Enabled
-                bindBuffer ArrayBuffer $= Just nid
-                arrayPointer NormalArray $= VertexArrayDescriptor 3 Float 0 nullPtr
-            otherwise -> return ()
-
-    _ <- case mesh_texcoords mesh of
-            (Just tid) -> do
-                clientState TextureCoordArray $= Enabled
-                bindBuffer ArrayBuffer $= Just tid
-                arrayPointer TextureCoordArray $= VertexArrayDescriptor 3 Float 0 nullPtr
-            otherwise -> return ()
-
-    bindBuffer ElementArrayBuffer $= (Just $ mesh_indices mesh)
-    arrayPointer IndexArray $= VertexArrayDescriptor 1 UnsignedInt 0 nullPtr
-
-    fio
-
-    clientState IndexArray $= Disabled
-    clientState TextureCoordArray $= Disabled
-    clientState NormalArray $= Disabled
-    clientState VertexArray $= Disabled
 
 
 create2DGrid :: (Enum a, Vector v1 a, Vector v2 a, Integral i,VertexComponent a) =>
