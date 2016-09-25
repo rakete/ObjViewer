@@ -36,8 +36,8 @@ data VBOData = VBOData
         , vboFaces :: [FaceGroup]
         }
 
-instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map String VBOData) where
-    construct mobjscene = do
+uploadObjScene :: (Maybe (ObjScene GLfloat GLuint)) -> IO (M.Map String VBOData,M.Map String VBOData)
+uploadObjScene mobjscene = do
         if isJust mobjscene
             then do
                 let objects_map = objects $ fromJust mobjscene
@@ -87,7 +87,7 @@ instance Factory (Maybe (ObjScene GLfloat GLuint)) (M.Map String VBOData,M.Map S
 createVBOs :: StateT ViewerState IO ()
 createVBOs = do
     mobjscene <- gets currentObjScene
-    (newvbos,newtransvbos) <- liftIO $ construct mobjscene
+    (newvbos,newtransvbos) <- liftIO $ uploadObjScene mobjscene
     updateVBOs newvbos newtransvbos
 
 createGridVBO :: StateT ViewerState IO ()
