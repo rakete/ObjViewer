@@ -336,7 +336,7 @@ render viewerstate = do
     clear [ColorBuffer,DepthBuffer]
     renderGrid
     foldl (\io (name,vbo) -> renderVBO Opaque name vbo io) (return ()) $ M.assocs $ currentVBOs viewerstate
-    --foldl (\io (name,vbo) -> renderVBO Transparent name vbo io) (return ()) $ M.assocs $ transluentVBOs viewerstate
+    foldl (\io (name,vbo) -> renderVBO Transparent name vbo io) (return ()) $ M.assocs $ transluentVBOs viewerstate
 
     matrixMode $= GL.Modelview 0
     loadIdentity
