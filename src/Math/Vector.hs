@@ -19,7 +19,7 @@ import Graphics.Rendering.OpenGL.GL.VertexSpec
 import Graphics.Rendering.OpenGL.GL.Tensor
 import Graphics.Rendering.OpenGL.GL.CoordTrans
 
-class (Ord c,Floating c,Enum c) => Vector v c | v -> c where
+class (Num c,Floating c,Ord c) => Vector v c | v -> c where
     newVector :: [c] -> v
     fromVector :: Vector v1 c => v -> v1
     vecToList :: v -> [c]
@@ -46,7 +46,7 @@ class (Ord c,Floating c,Enum c) => Vector v c | v -> c where
                    then (k+1,xs ++ [c])
                    else (k+1,xs ++ [b])
               ) (0,[]) $ vecToList v
-    vecGetC v i = ((vecToList v) ++ [0..]) !! i
+    vecGetC v i = ((vecToList v) ++ [0,1,2,3,4,5,6,7,8,9,10]) !! i
     vecDim v = length $ vecToList v
     vecMap f v = newVector $ map f $ vecToList v
     vecFold f v = foldl1 f $ vecToList v
@@ -70,7 +70,7 @@ vector3Tuple (Vector3 x y z) = (x,y,z)
 vertex4Tuple (Vertex4 x y z w) = (x,y,z,w)
 color4Tuple (Color4 r g b a) = (r,g,b,a)
 
-instance (Ord c,Floating c,Enum c) => Vector (Vertex2 c) c where
+instance (Ord c,Floating c) => Vector (Vertex2 c) c where
     newVector (x:y:_) = Vertex2 x y
     vecToList (Vertex2 x y) = [x,y]
     fromVector (Vertex2 x y) = newVector [x,y,0.0,1.0]
@@ -88,7 +88,7 @@ instance (Ord c,Floating c,Enum c) => Vector (Vertex2 c) c where
         in Vertex2 (x/l) (y/l)
     vecNegate (Vertex2 x y) = Vertex2 (negate x) (negate y)
 
-instance (Ord c,Floating c,Enum c) => Vector (Vector2 c) c where
+instance (Ord c,Floating c) => Vector (Vector2 c) c where
     newVector (x:y:_) = Vector2 x y
     vecToList (Vector2 x y) = [x,y]
     fromVector (Vector2 x y) = newVector [x,y,0.0,1.0]
@@ -105,7 +105,7 @@ instance (Ord c,Floating c,Enum c) => Vector (Vector2 c) c where
         in Vector2 (x/l) (y/l)
     vecNegate (Vector2 x y) = Vector2 (negate x) (negate y)
 
-instance (Ord c,Floating c,Enum c) => Vector (Vertex3 c) c where
+instance (Ord c,Floating c) => Vector (Vertex3 c) c where
     newVector (x:y:z:_) = Vertex3 x y z
     vecToList (Vertex3 x y z) = [x,y,z]
     fromVector (Vertex3 x y z) = newVector [x,y,z,1.0]
@@ -122,7 +122,7 @@ instance (Ord c,Floating c,Enum c) => Vector (Vertex3 c) c where
         in Vertex3 (x/l) (y/l) (z/l)
     vecNegate (Vertex3 x y z) = Vertex3 (negate x) (negate y) (negate z)
 
-instance (Ord c,Floating c,Enum c) => Vector (Vector3 c) c where
+instance (Ord c,Floating c) => Vector (Vector3 c) c where
     newVector (x:y:z:_) = Vector3 x y z
     vecToList (Vector3 x y z) = [x,y,z]
     fromVector (Vector3 x y z) = newVector [x,y,z,1.0]
@@ -139,7 +139,7 @@ instance (Ord c,Floating c,Enum c) => Vector (Vector3 c) c where
         in Vector3 (x/l) (y/l) (z/l)
     vecNegate (Vector3 x y z) = Vector3 (negate x) (negate y) (negate z)
 
-instance (Ord c,Floating c,Enum c) => Vector (Vertex4 c) c where
+instance (Ord c,Floating c) => Vector (Vertex4 c) c where
     newVector (x:y:z:w:_) = Vertex4 x y z w
     vecToList (Vertex4 x y z w) = [x,y,z,w]
     fromVector (Vertex4 x y z w) = newVector [x,y,z,w]
@@ -156,7 +156,7 @@ instance (Ord c,Floating c,Enum c) => Vector (Vertex4 c) c where
         in Vertex4 (x/l) (y/l) (z/l) w
     vecNegate (Vertex4 x y z w) = Vertex4 (negate x) (negate y) (negate z) w
 
-instance (Ord c,Floating c,Enum c) => Vector (Color4 c) c where
+instance (Ord c,Floating c) => Vector (Color4 c) c where
     newVector (x:y:z:w:_) = Color4 x y z w
     vecToList (Color4 x y z w) = [x,y,z,w]
     fromVector (Color4 x y z w) = newVector [x,y,z,w]
@@ -173,7 +173,7 @@ instance (Ord c,Floating c,Enum c) => Vector (Color4 c) c where
         in Color4 (x/l) (y/l) (z/l) w
     vecNegate (Color4 x y z w) = Color4 (negate x) (negate y) (negate z) w
 
-instance (Ord c,Floating c,Enum c) => Vector (c,c,c) c where
+instance (Ord c,Floating c) => Vector (c,c,c) c where
     newVector (x:y:z:_) = (x,y,z)
     vecToList (x,y,z) = [x,y,z]
     fromVector (x,y,z) = newVector [x,y,z,0]
@@ -181,7 +181,7 @@ instance (Ord c,Floating c,Enum c) => Vector (c,c,c) c where
 --
 --
 
-insideRect :: (Floating c,Ord c,Enum c) => Vertex2 c -> Vertex2 c -> Vertex2 c -> Bool
+insideRect :: (Floating c,Ord c) => Vertex2 c -> Vertex2 c -> Vertex2 c -> Bool
 insideRect p q v =
     let t = (xp > xq, yp > yq)
         (Vertex2 xp yp) = p
@@ -196,7 +196,7 @@ insideRect p q v =
 insideTriangle :: (Num c,VertexComponent c, Vector v c) => v -> v -> v -> v -> Bool
 insideTriangle a b c v = (sameSide a b c v) && (sameSide b c a v) && (sameSide c a b v)
 
-intersect :: (RealFloat c,Floating c,Ord c,Enum c,VertexComponent c) => Vertex2 c -> Vertex2 c -> Vertex2 c -> Vertex2 c -> Maybe (Vertex2 c)
+intersect :: (RealFloat c,Floating c,Ord c,VertexComponent c) => Vertex2 c -> Vertex2 c -> Vertex2 c -> Vertex2 c -> Maybe (Vertex2 c)
 intersect a p@(Vertex2 xp yp) b q@(Vertex2 xq yq) =
     let mp = slope a p
         mq = slope b q
@@ -215,7 +215,7 @@ sameSide p' q' r' v' =
         cp2 = (q `vecSub` p) `crossProduct` (r `vecSub` p)
     in (cp1 `dot` cp2) >= 0.0
 
-slope :: (Floating c,Ord c,Enum c, VertexComponent c) => Vertex2 c -> Vertex2 c -> c
+slope :: (Floating c,Ord c, VertexComponent c) => Vertex2 c -> Vertex2 c -> c
 slope = (\v2a v2b -> (\(Vertex2 x y) -> y/x) $ (v2a `vecSub` v2b))
 
 angleBetween :: (RealFloat c, Fractional c, Vector v c) => v -> v -> c
