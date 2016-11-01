@@ -14,13 +14,13 @@ When I wrote this viewer I later took the code and made my GameState engine out 
 
 If you have a working haskell stack setup:
 
-> git clone https://github.com/rakete/ObjViewer
-> cd ObjViewer
-> stack build
+    git clone https://github.com/rakete/ObjViewer
+    cd ObjViewer
+    stack build
 
 Then use:
 
-> stack exec ObjViewer-exe <objfile>
+    stack exec ObjViewer-exe <objfile>
 
 to run.
 
