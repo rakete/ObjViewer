@@ -1,6 +1,6 @@
 ##About
 
-A simple ObjViewer. Might be usefull as Parsec example and for everyone trying to figure out how to use OpenGL with Haskell.
+A simple ObjViewer. Might be useful as Parsec example and for everyone trying to figure out how to use OpenGL with Haskell.
 
 I've written this quite some time ago and recently wanted to refresh my haskell knowledge a bit, so I fixed this up and tried understanding the code I produced back then.
 
@@ -12,7 +12,7 @@ When I wrote this viewer I later took the code and made my GameState engine out 
 
 ##Usage
 
-If you have a working haskell stack setup:
+If you have a working [haskell stack](https://docs.haskellstack.org/en/stable/README/) setup:
 
     git clone https://github.com/rakete/ObjViewer
     cd ObjViewer
@@ -22,7 +22,7 @@ Then use:
 
     stack exec ObjViewer-exe <objfile>
 
-to run.
+to run. Try it on the .obj files in ./test/, those should work.
 
 You can zoom in and out using the mouse wheel. If you press the middle mouse button once you will turn arcball mode, where you can rotate the camera around the object, pressing middle mouse again will turn it off. Pressing w will toggle the wireframe display.
 
