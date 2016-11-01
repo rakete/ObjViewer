@@ -40,9 +40,9 @@ uploadObjScene :: (Maybe (ObjScene GLfloat GLuint)) -> IO (M.Map String VBOData,
 uploadObjScene mobjscene = do
         if isJust mobjscene
             then do
-                let objects_map = objects $ fromJust mobjscene
-                let maybe_mtllib = mtllib $ fromJust mobjscene
-                (newvbos,newtransvbos) <- M.foldWithKey (vboUploadObject maybe_mtllib) (return (M.empty,M.empty)) objects_map
+                let objects_map = objscene_objects $ fromJust mobjscene
+                let mtllib = objscene_mtllib $ fromJust mobjscene
+                (newvbos,newtransvbos) <- M.foldWithKey (vboUploadObject mtllib) (return (M.empty,M.empty)) objects_map
                 return (newvbos,newtransvbos)
             else return (M.empty,M.empty)
 
@@ -58,15 +58,13 @@ uploadObjScene mobjscene = do
             mtid <- if null texcoordlist then return Nothing else newVBO ArrayBuffer texcoordlist StaticDraw >>= return . Just
             iid <- newVBO ElementArrayBuffer indiceslist StaticDraw
 
-            let gs = (M.elems $ objmesh_groups mesh)
+            let gs = objmesh_groups mesh
             ts <- sequence $ map (\g -> do
                 let offset = group_offset g
                 let ni = group_size g
-                let mat = if isJust mmtllib
-                           then if isJust (group_material g)
-                                 then M.findWithDefault defaultMaterial (fromJust $ group_material g) (fromJust mmtllib)
-                                 else defaultMaterial
-                           else defaultMaterial
+                let mat = if isJust (group_material g)
+                            then M.findWithDefault defaultMaterial (fromJust $ group_material g) mmtllib
+                            else defaultMaterial
                 let trans = (let (_,d) = material_dissolve mat in d < 1.0)
                 if trans
                  then return $ (Nothing,Just $ FaceGroup offset ni mat)

@@ -58,7 +58,7 @@ data ObjVertexGroup = ObjVertexGroup
 data ObjMesh a b = ObjMesh
     { objmesh_name :: String
     , objmesh_data :: ([Vertex3 a], [Normal3 a], [TexCoord2 a], Indices b)
-    , objmesh_groups :: M.Map (Maybe String, b) ObjVertexGroup
+    , objmesh_groups :: [ObjVertexGroup]
     }
     deriving Show
 
@@ -66,8 +66,8 @@ data ObjMesh a b = ObjMesh
 -- material string names with actual material data structures, and a map of objects with their names
 -- used as keys
 data ObjScene a b = ObjScene
-    { mtllib :: Maybe (M.Map String (ObjMaterial a))
-    , objects :: M.Map b (ObjMesh a b)
+    { objscene_mtllib ::  M.Map String (ObjMaterial a)
+    , objscene_objects :: M.Map b (ObjMesh a b)
     }
 
 -- this definition is used by Parsec to create a custom lexer for our language
@@ -131,10 +131,6 @@ initParserState = ParserState
       parserstate_smoothgroup = Nothing,
       parserstate_material = Nothing }
 
-parseSmoothGroup :: GenParser Char ParserState ()
-parseSmoothGroup = do
-  (maybe_groupname, maybe_smoothgroup) <- permute $
-      (,)
 -- both parseSmoothGroup and parseMaterialGroup look and act very similar for a reason which I explain in the
 -- comment for parseSmoothGroup
 --
@@ -145,36 +141,10 @@ parseSmoothGroup = do
 --
 -- notice how parseMaterialGroup and parseSmoothGroup have no return type, these functions actually only have a
 -- side effect, they modify the parser state if "g", "s" or "usemtl" were parsed, and only if they were parsed
-      <$?> (Nothing,
-           do reserved "g"
-              groupname <- option "off" identifier
-              return $ Just groupname)
-      <|?> (Nothing,
-           do reserved "s"
-              smoothgroup <- option "off" identifier
-              return $ Just smoothgroup)
-
-  if isJust maybe_groupname
-    then modifyState (\p -> p{ parserstate_groupname = if maybe_groupname == (Just "off") then Nothing else maybe_groupname })
-    else return ()
-  if isJust maybe_smoothgroup
-    then modifyState (\p -> p{ parserstate_smoothgroup = if maybe_smoothgroup == (Just "off") then Nothing else maybe_smoothgroup })
-    else return ()
-
 parseMaterialGroup :: GenParser Char ParserState ()
 parseMaterialGroup = do
   (maybe_material, maybe_groupname, maybe_smoothgroup) <- permute $
       (,,)
--- the reason why parseSmoothGroup exists is because I needed a way to distinguish when parseMaterialGroup parses only
--- a smoothgroup consisting of "g" or "s", or when parseMaterialGroup parses a full material with "g","s" or "usemtl",
--- while still having each of the "g","s" or "usemtl" options remain optional in the permuting parser, so that I can
--- use the parser even when there is none of the keywords present to be parsed at all
---
--- parseSmoothGroup is used instead of parseMaterialGroup when I parse the indices of the mesh that make up the faces,
--- these are grouped by an initial material definition but then also may have multiple groupnames and smoothgroups,
--- making it neccessary that I parse only "g" or "s" keywords, but not "usemtl"
---
--- just as parseMaterialGroup this has no return type, it only modifies the parser state
       <$?> (Nothing,
             do reserved "usemtl"
                mat <- identifier
@@ -191,6 +161,36 @@ parseMaterialGroup = do
   if isJust maybe_material
     then modifyState (\p -> p{ parserstate_material = maybe_material })
     else return ()
+  if isJust maybe_groupname
+    then modifyState (\p -> p{ parserstate_groupname = if maybe_groupname == (Just "off") then Nothing else maybe_groupname })
+    else return ()
+  if isJust maybe_smoothgroup
+    then modifyState (\p -> p{ parserstate_smoothgroup = if maybe_smoothgroup == (Just "off") then Nothing else maybe_smoothgroup })
+    else return ()
+
+-- the reason why parseSmoothGroup exists is because I needed a way to distinguish when parseMaterialGroup parses only
+-- a smoothgroup consisting of "g" or "s", or when parseMaterialGroup parses a full material with "g","s" or "usemtl",
+-- while still having each of the "g","s" or "usemtl" options remain optional in the permuting parser, so that I can
+-- use the parser even when there is none of the keywords present to be parsed at all
+--
+-- parseSmoothGroup is used instead of parseMaterialGroup when I parse the indices of the mesh that make up the faces,
+-- these are grouped by an initial material definition but then also may have multiple groupnames and smoothgroups,
+-- making it neccessary that I parse only "g" or "s" keywords, but not "usemtl"
+--
+-- just as parseMaterialGroup this has no return type, it only modifies the parser state
+parseSmoothGroup :: GenParser Char ParserState ()
+parseSmoothGroup = do
+  (maybe_groupname, maybe_smoothgroup) <- permute $
+      (,)
+      <$?> (Nothing,
+           do reserved "g"
+              groupname <- option "off" identifier
+              return $ Just groupname)
+      <|?> (Nothing,
+           do reserved "s"
+              smoothgroup <- option "off" identifier
+              return $ Just smoothgroup)
+
   if isJust maybe_groupname
     then modifyState (\p -> p{ parserstate_groupname = if maybe_groupname == (Just "off") then Nothing else maybe_groupname })
     else return ()
@@ -295,7 +295,6 @@ parseVertexGroup vertices = do
           <|?> (Nothing, reserved "s" >> option "off" identifier >>= return . Just))
     return (maybe_material, vertexgroup)
 
-assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [(i, Maybe i, Maybe i)])] -> i -> ([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i)
 -- the data parsed by parseVertices and parseVertexGroups is not suitable to be rendered with opengl yet, we need to first transform it
 -- so that it fits opengls idea of how the data should look like
 --
@@ -316,42 +315,42 @@ assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Nu
 -- by inserting a new unique vertex for every index encountered, this is slow for larger meshes so I tried to counter this downside by
 -- using the original vertices, normals, texcoords and indices as output if either there are no normals or texcoords at all, or the indices
 -- for vertices, normals and textures are all equal
+assembleObjMeshData :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [(i, Maybe i, Maybe i)])] -> i -> ([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i)
 assembleObjMeshData (orig_vertices, orig_normals, orig_texcoords) polygons offset =
   let array_vertices = array (0,length orig_vertices) $ zip [0..] orig_vertices
       array_normals = array (0,length orig_normals) $ zip [0..] orig_normals
       array_texcoords = array (0,length orig_texcoords) $ zip [0..] orig_texcoords
-      (more_vertices, maybe_meshnormals, maybe_meshtexcoords) = unzip3 $ do
+      (indices_equal_list, inflated_vertices, maybe_meshnormals, maybe_meshtexcoords) = unzip4 $ do
           meshindex <- concatMap snd polygons
           let (vertex_index, maybe_normal_index, maybe_texcoord_index) = meshindex
-          return (array_vertices ! fromIntegral (vertex_index - 1),
+          return ((isNothing maybe_normal_index) && (isNothing maybe_texcoord_index) ||
+                  (isNothing maybe_texcoord_index) && (vertex_index == (fromJust maybe_normal_index)) ||
+                  (isNothing maybe_normal_index) && (vertex_index == (fromJust maybe_texcoord_index)) ||
+                  (vertex_index == (fromJust maybe_normal_index)) && (vertex_index == (fromJust maybe_texcoord_index)),
+                  array_vertices ! fromIntegral (vertex_index - 1),
                   maybe Nothing (\i -> Just $ array_normals ! fromIntegral (i - 1)) maybe_normal_index,
                   maybe Nothing (\i -> Just $ array_texcoords ! fromIntegral (i - 1)) maybe_texcoord_index)
       unzipped_polygon_indices = unzip3 $ concatMap snd polygons
       orig_vertex_indices = map (\i -> i - 1) $ fst3 $ unzipped_polygon_indices
-      orig_normal_indices = map (\i -> i - 1) $ catMaybes $ snd3 $ unzipped_polygon_indices
-      orig_texcoord_indices = map (\i -> i - 1) $ catMaybes $ thd3 $ unzipped_polygon_indices
-      more_vertices_size = fromIntegral $ length more_vertices
-      vertex_eq_normal = orig_vertex_indices == orig_normal_indices
-      vertex_eq_texcoord = orig_vertex_indices == orig_texcoord_indices
-      use_orig = (null orig_normals && null orig_texcoords) ||
-                 (vertex_eq_normal && null orig_texcoords) ||
-                 (vertex_eq_texcoord && null orig_normals) ||
-                 (vertex_eq_normal && vertex_eq_texcoord)
+      inflated_indices = [offset .. offset+inflated_vertices_size-1]
+      inflated_vertices_size = fromIntegral $ length inflated_vertices
+      all_indices_equal = all id indices_equal_list
+      use_orig = (null orig_normals && null orig_texcoords) || all_indices_equal
   in if use_orig
      then (orig_vertices, orig_normals, orig_texcoords, orig_vertex_indices)
-     else (more_vertices, catMaybes maybe_meshnormals, catMaybes maybe_meshtexcoords, [offset .. offset+more_vertices_size-1])
+     else (inflated_vertices, catMaybes maybe_meshnormals, catMaybes maybe_meshtexcoords, inflated_indices)
 
-assembleObjMeshGroups :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [(Maybe String, [(i, Maybe i, Maybe i)])])] -> (([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i), M.Map (Maybe String, i) ObjVertexGroup)
 -- this just applies assembleObjMeshData to all the vertex groups and returns the resulting data as (meshdata, meshgroups) tuple which we
 -- can then use to create a ObjMesh, its just a fold which accumulates lists and keeps track of an offset
+assembleObjMeshGroups :: (VertexComponent c, Fractional c, RealFloat c, Enum c, Num i, Integral i) => ([Vertex3 c], [Normal3 c], [TexCoord2 c]) -> [(Maybe String, [(Maybe String, [(i, Maybe i, Maybe i)])])] -> (([Vertex3 c], [Normal3 c], [TexCoord2 c], Indices i), [ObjVertexGroup])
 assembleObjMeshGroups sparsedata groupstuples =
-  snd $ foldl (\(offset, ((accum_vertices, accum_normals, accum_texcoords, accum_indices), accum_groupmap)) (maybe_material, polygons) ->
+  snd $ foldl' (\(offset, ((accum_vertices, accum_normals, accum_texcoords, accum_indices), accum_groups)) (maybe_material, polygons) ->
                  let (vertices, normals, texcoords, indices) = assembleObjMeshData sparsedata polygons offset
                      indices_size = fromIntegral $ length indices
                      result_meshdata = (accum_vertices ++ vertices, accum_normals ++ normals, accum_texcoords ++ texcoords, accum_indices ++ indices)
-                     result_groupmap = M.insert (maybe_material, offset) (ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral indices_size)) accum_groupmap
-                 in (offset + indices_size, (result_meshdata, result_groupmap)))
-               (0, (([], [], [], []), M.empty)) groupstuples
+                     result_groups = accum_groups ++ [(ObjVertexGroup maybe_material (fromIntegral offset) (fromIntegral indices_size))]
+                 in (offset + indices_size, (result_meshdata, result_groups)))
+               (0, (([], [], [], []), [])) groupstuples
 
 -- compared to the stuff above, parseObject, parseObjScene and parseObjFile are uninteresting, these just call the parsers we defined above
 -- and stick the results together
@@ -376,7 +375,7 @@ parseObjScene fallbackname = do
         identifier >>= return . Just
     objects <- many1 $ parseObject fallbackname
     eof
-    return $ (mtlfile, ObjScene Nothing (listIntMap objects))
+    return $ (mtlfile, ObjScene M.empty (listIntMap objects))
 
 -- parseObjFile parses a whole obj file, here the error reporting is done when the parse fails, and we also call the parser for the material lib here,
 -- this function produces the final ObjScene that we use in the renderer
@@ -397,7 +396,7 @@ parseObjFile objpath = do
                         let mtlparse = (runParser parseObjMaterialLib initParserState mtlpath mtlinput)
                         case mtlparse of
                            Left err -> return $ Left err
-                           Right m -> return $ Right $ ObjScene (Just m) o
+                           Right m -> return $ Right $ ObjScene m o
                      else return $ Right os
                 otherwise -> return $ Right os
 
