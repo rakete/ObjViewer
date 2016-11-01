@@ -123,13 +123,19 @@ parseComponent = do
 data ParserState = ParserState
     { parserstate_groupname :: Maybe String,
       parserstate_smoothgroup :: Maybe String,
-      parserstate_material :: Maybe String }
+      parserstate_material :: Maybe String,
+      num_vertices :: (Integer,Integer),
+      num_texcoords :: (Integer,Integer),
+      num_normals :: (Integer,Integer) }
 
 initParserState :: ParserState
 initParserState = ParserState
     { parserstate_groupname = Nothing,
       parserstate_smoothgroup = Nothing,
-      parserstate_material = Nothing }
+      parserstate_material = Nothing,
+      num_vertices = (0,0),
+      num_normals = (0,0),
+      num_texcoords = (0,0) }
 
 -- both parseSmoothGroup and parseMaterialGroup look and act very similar for a reason which I explain in the
 -- comment for parseSmoothGroup
@@ -226,6 +232,10 @@ parseVertices = do
             v <- parseComponent
             return $ TexCoord2 u v)
 
+    updateState (\p -> p{ num_vertices = (\(a,b) -> (fromIntegral $ length vertex_list, a+b)) $ num_vertices p} )
+    updateState (\p -> p{ num_normals = (\(a,b) -> (fromIntegral $ length normal_list, a+b)) $ num_normals p} )
+    updateState (\p -> p{ num_texcoords = (\(a,b) -> (fromIntegral $ length texcoord_list, a+b)) $ num_texcoords p} )
+
     return $ (vertex_list, normal_list, texcoord_list)
 
 -- after parsing the vertices with parseVertices, whats left is parsing the indices that make up the faces, together with all smoothgroups
@@ -260,6 +270,7 @@ parseVertexGroup vertices = do
     parseMaterialGroup
     maybe_material <- getState >>= return . parserstate_material
 
+    (ParserState _ _ _ (_,v_offset) (_,t_offset) (_,n_offset)) <- getState
     vertexgroup <- many1Till (do
         parseSmoothGroup
         maybe_smoothgroup <- getState >>= return . parserstate_smoothgroup
@@ -267,15 +278,15 @@ parseVertexGroup vertices = do
         face <- many3 $ try (do
                                 v <- do
                                   v' <- natural
-                                  return $ fromIntegral v' --(v'-1-v_offset)
+                                  return $ fromIntegral (v'-v_offset)
                                 symbol "/"
                                 t <- option Nothing $ do
                                   t' <- natural
-                                  return $ Just $ fromIntegral t' --(t'-1-t_offset)
+                                  return $ Just $ fromIntegral (t'-t_offset)
                                 symbol "/"
                                 n <- option Nothing $ do
                                   n' <- natural
-                                  return $ Just $ fromIntegral n' --(n'-1-n_offset)
+                                  return $ Just $ fromIntegral (n'-n_offset)
                                 return (v, n, t))
                 <|> (do
                         v' <- natural
@@ -289,10 +300,11 @@ parseVertexGroup vertices = do
                    (_, triangle_indices) = triangulatePolygon polygon_vertices polygon_indices
                    triangles = map (\i -> fromJust $ M.lookup i polygon) triangle_indices
                in return (maybe_smoothgroup, triangles))
-        (try $ lookAhead $ permute $ (,,)
+        (try $ lookAhead $ (permute $ (,,)
           <$$> ((reserved "usemtl" >> identifier) <|> (eof >> return ""))
           <|?> (Nothing, reserved "g" >> option "off" identifier >>= return . Just)
           <|?> (Nothing, reserved "s" >> option "off" identifier >>= return . Just))
+        <|> (reserved "o" >> option "" identifier >> return ("", Nothing, Nothing)))
     return (maybe_material, vertexgroup)
 
 -- the data parsed by parseVertices and parseVertexGroups is not suitable to be rendered with opengl yet, we need to first transform it
@@ -378,6 +390,8 @@ parseObjScene fallbackname = do
     return $ (mtlfile, ObjScene M.empty (listIntMap objects))
 
 -- parseObjFile parses a whole obj file, here the error reporting is done when the parse fails, and we also call the parser for the material lib here,
+-- but only if the mtl file actually exists
+--
 -- this function produces the final ObjScene that we use in the renderer
 parseObjFile :: (ColorComponent c,VertexComponent c, Fractional c, RealFloat c, Enum c, Integral i) => FilePath -> IO (Either ParseError (ObjScene c i))
 parseObjFile objpath = do
