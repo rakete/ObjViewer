@@ -1,3 +1,7 @@
+<p align="center">
+<img src="screenshot.png" width="620"/>
+</p>
+
 ## About
 
 A simple ObjViewer. Might be useful as Parsec example and for everyone trying to figure out how to use OpenGL with Haskell.
