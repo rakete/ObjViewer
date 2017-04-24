@@ -1,4 +1,4 @@
-##About
+## About
 
 A simple ObjViewer. Might be useful as Parsec example and for everyone trying to figure out how to use OpenGL with Haskell.
 
@@ -10,7 +10,7 @@ There were also numerous problems with the parsing, which should be fixed, but I
 
 When I wrote this viewer I later took the code and made my GameState engine out of it, this explains why I have stuff like Primitives.hs and Texture.hs in there, without really making use of them.
 
-##Usage
+## Usage
 
 If you have a working [haskell stack](https://docs.haskellstack.org/en/stable/README/) setup:
 
@@ -26,7 +26,7 @@ to run. Try it on the .obj files in ./test/, those should work.
 
 You can zoom in and out using the mouse wheel. If you press the middle mouse button once you will turn arcball mode, where you can rotate the camera around the object, pressing middle mouse again will turn it off. Pressing w will toggle the wireframe display.
 
-###What works
+### What works
 
 - Loading and displaying meshes, even very large ones.
 - Rotating the mesh, zooming in and out.
@@ -35,6 +35,6 @@ You can zoom in and out using the mouse wheel. If you press the middle mouse but
 - Transparent faces mixed with opaque ones render in correct order.
 - Smooth groups, there can be both smooth and hard edges in a mesh, and they are shaded correctly.
 
-###What does not work
+### What does not work
 
 - There is no support for textures.
